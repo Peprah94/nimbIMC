@@ -1,6 +1,6 @@
 {
     "installOptions": {
-        "installFromRepository": true,
+        "installFromRepository": false,
         "libraryPath": "/Library/Frameworks/R.framework/Versions/4.2/Resources/library",
         "installDependencies": true
     }

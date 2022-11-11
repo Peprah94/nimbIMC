@@ -1,8 +1,7 @@
 library(nimble)
 library(parallel)
-#source("estpar.R")
-#load("data_for_nimble.RData")
-ii <- 0
+
+cnt <- 0
 listout <- list()
 
 sampler_BASE <- nimbleFunctionVirtual(
@@ -48,6 +47,7 @@ myRW_dirichlet <- nimbleFunction(
   },
   run = function() {
      extralpD <- model$calculateDiff(calcNodesNoSelf)
+     for(j in 1:dr)
     for(i in 1:d){
       #targets[i] <- targets[i]
 
@@ -162,10 +162,7 @@ nimble_omega <- nimbleRcall(
 library(nimble)
 library(dirmult)
 code <-nimbleCode({
-  #prior for omega
-  #for(i in 1:nspecies){
-  #  alpha[i] ~ dexp(1)
- # }
+
 
   for(i in 1:nspecies){
     omega[i, 1:nspecies] ~ ddirch(alpha = alpha[1:nspecies])
@@ -288,7 +285,7 @@ const <- list(nspecies=length(unique(data_df$C)),
 #library(pbapply)
 
   mcmc.out <- runMCMC(cmcmc,
-                            niter = 100,
+                            niter = 10,
                            #nburnin = 500,
                            inits = initsList,
                            # thin =100,

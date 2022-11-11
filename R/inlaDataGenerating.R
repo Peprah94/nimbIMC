@@ -19,6 +19,11 @@ estimatingParsDataGenerating <- function(omega){
   covs <- get("covs",envir = parent.frame())
   region <- get("region",envir = parent.frame())
   mesh <- get("mesh",envir = parent.frame())
+  listout <- get("listout",envir = parent.frame())
+  cnt  <- get("cnt",envir =  parent.frame())
+  cnt <- assign("cnt",cnt+1,envir = parent.frame())
+  print(cnt)
+  message(paste0("Calling INLA function ", cnt, " times."))
 
   # Organizing the inputs
   message("Extracting the constants")
@@ -191,6 +196,8 @@ message("Defining components of the INLABru")
     )
   }
 
+  if(length(listout)==0){assign("listout",fit2)}
+  else{assign("listout",rbind(listout,fit2))}
 
   plots = FALSE
   if(plots == TRUE){

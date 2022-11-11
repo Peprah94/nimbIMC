@@ -247,6 +247,29 @@ ggmcmc::ggs_density(ggSamples)+
 # DataGenerating process
 ###########################
 library(spatstat)
+library(maptools)
+
+library(sp)
+library(rgeos)
+library(INLA)
+library(dplyr)
+library(raster)
+library(pbapply)
+library(reshape)
+library(tiff)
+library(maptools)
+library(spatstat)
+library(gdata)
+library(ggplot2)
+library(gridExtra)
+#library(PCDSpline)
+library(foreach)
+library(doParallel)
+library(viridis)
+library(RandomFieldsUtils)
+#library(devtools)
+#install_github("cran/tiff")
+require(devtools)
 x0 <- seq(-1, 4, length = 100)
 y0 <- seq(-1,4, length = 100)
 gridlocs <- expand.grid(x0,y0)
@@ -353,8 +376,8 @@ input <-{list(
 
   misclassification = list(
 
-    class_prob <- matrix(c(0.9, 0.1,
-                           0.05, 0.95),
+    class_prob <- matrix(c(0.7, 0.3,
+                           0.35, 0.65),
                          nrow=2, ncol=2, byrow = TRUE)
   ),
   constants = list(n.species = 2,
@@ -484,3 +507,100 @@ class_prob <- matrix(c(0.9, 0.1,
                        0.05, 0.95),
                      nrow=2, ncol=2, byrow = TRUE)
 CnimbleINLA(class_prob)
+
+
+# Running INLA within NIMBLE
+cnt <- 0
+listout <- list()
+code <-nimbleCode({
+
+
+  for(i in 1:nspecies){
+    omega[i, 1:nspecies] ~ ddirch(alpha = alpha[1:nspecies])
+
+  }
+
+  r[1:nsite,1:20] <- nimbleINLADataGenerating(omega[1:nspecies,1:nspecies]) #change 38 to a constant to be specified
+
+  for(i in 1:nsite){
+    # for(j in 1:nspecies){
+    log(lambda_obs[i,1]) <- r[i,5] + r[i,6]*true_cov[i] + r[i,11]+
+      r[i, 7] + r[i,8]*bias_cov[i]+ r[i,12] - log(1+exp(r[i, 7] + r[i,8]*bias_cov[i]+ r[i,12])) +
+      r[i, 9] + r[i,10]*det_cov[i] - log(1+exp(r[i, 9] + r[i,10]*det_cov[i]))
+    # Second species
+    log(lambda_obs[i,2]) <- r[i,13] + r[i,14]*true_cov[i] + r[i,19]+
+      r[i, 15] + r[i,16]*bias_cov[i]+ r[i,20] - log(1+exp(r[i, 15] + r[i,16]*bias_cov[i]+ r[i,20])) +
+      r[i, 17] + r[i,18]*det_cov[i] - log(1+exp(r[i, 17] + r[i,18]*det_cov[i]))
+
+  }
+
+  lambda[1:nsite, 1:nspecies] <- lambda_obs[1:nsite, 1:nspecies]
+
+  #Proportion of lambdas
+
+
+  # Proportion for the multinomial distribution
+  for(site.tag in 1:nsite){
+    for(spe.tag in 1:nspecies){
+      prop[site.tag,spe.tag] <- (lambda[site.tag, spe.tag])/sum(lambda[site.tag, 1:nspecies])
+    }
+  }
+
+
+  # True data
+  for(site.tag in 1:nsite){
+    C[site.tag] ~ dcat(prop[site.tag,1:nspecies])
+  }
+
+  # Reported species
+  for(site.tag in 1:nsite){
+    Y[site.tag] ~ dcat(omega[C[site.tag],1:nspecies])
+  }
+
+})
+
+#Data
+inla_data <- list(Y=data_df$Y,
+                  C = data_df$C,
+                  true_cov = data_df$eco_cov,
+                  bias_cov=data_df$samp_cov,
+                  det_cov= data_df$det_cov)
+
+#Constants
+const <- list(nspecies=length(unique(data_df$C)),
+              nsite = length(data_df$C),
+              alpha=rep(1, length(unique(data_df$C)))
+)
+
+# Initial values
+idm_inits <- function(){list(omega = matrix(c(0.99, 0.01,
+                                              0.01, 0.99),
+                                            nrow=2, ncol=2, byrow = TRUE)
+)
+}
+
+cnt = 0
+assign('myRW_dirichlet', myRW_dirichlet, envir = .GlobalEnv)
+inlanim = INLAWiNimDataGenerating(data = data_df,
+                                  code = code,
+                     modelData = inla_data,
+                     modelConstants = const,
+                     modelInits = idm_inits,
+                     fam = "nogaussian",
+                     parametersToMonitor = c("omega"),
+                     mcmcConfiguration =  list(n.chains = 1,
+                                               n.iterations = 1000,
+                                               n.burnin = 200,
+                                               n.thin = 1,
+                                               setSeed = TRUE,
+                                               samples=TRUE,
+                                               samplesAsCodaMCMC = TRUE,
+                                               summary = TRUE,
+                                               WAIC = FALSE))
+save(inlanim, file = "inlaDGProcess.RData")
+
+load("estimates.RData")
+ggSamples <- ggmcmc::ggs(mcmc.out$samples)
+ggmcmc::ggs_traceplot(ggSamples)+
+  ggplot2::facet_wrap(~Parameter, ncol = 3)+
+  ggplot2::theme_classic()
