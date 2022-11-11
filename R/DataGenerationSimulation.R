@@ -10,10 +10,10 @@
 generateCSData <- function(input,
                    domain=NULL,
                    colmatrix=NULL){
-source("R/metaFunctionsDataGenerating.R")
-  source("R/Thinstage1.R")
-  source("R/Thinstage2.R")
-  source("R/Thinstage3.R")
+#source("R/metaFunctionsDataGenerating.R")
+#  source("R/Thinstage1.R")
+#  source("R/Thinstage2.R")
+#  source("R/Thinstage3.R")
 #Retrieving necessary inputs
 n.species = input$constants$n.species
 seed = input$constants$seed
