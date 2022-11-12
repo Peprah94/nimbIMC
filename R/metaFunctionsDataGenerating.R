@@ -69,3 +69,6 @@ im2rast <- function(im){
   r1<-disaggregate(r, fact=res(r)/c(xstp,ystp))
   cov1.rast <- rasterize(cov1.sp@coords,r1,cov1.sp$cov, fun=mean,na.rm=T)
 }
+
+
+

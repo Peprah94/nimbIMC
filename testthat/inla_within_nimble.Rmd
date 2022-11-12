@@ -63,7 +63,7 @@ inlaNimBivariate = INLAWiNim (data = df, code = code,
                      fam = "gaussian",
                      mcmcConfiguration =  list(n.chains = 1,
                                                n.iterations = 1000,
-                                               n.burnin = 500,
+                                               n.burnin = 200,
                                                n.thin = 1,
                                                setSeed = TRUE,
                                                samples=TRUE,
@@ -139,7 +139,7 @@ inlaNimLasso = INLAWiNim (data = df, code = code,
                      parametersToMonitor = c("beta", "alpha","sigma"),
                      mcmcConfiguration =  list(n.chains = 1,
                                                n.iterations = 1000,
-                                               n.burnin = 500,
+                                               n.burnin = 200,
                                                n.thin = 1,
                                                setSeed = TRUE,
                                                samples=TRUE,
@@ -164,7 +164,8 @@ ggmcmc::ggs_density(ggSamples)+
 ```{r,message=FALSE, warning=FALSE, include=FALSE}
 
 # Missing covariates
-data("nhanes2")
+library(mice)
+data(nhanes2)
 
 # data
 d.mis <- nhanes2
@@ -213,7 +214,7 @@ idm_inits <- function(){list(eta = rep(0, const$n.idx)
 )
 }
 
-inlanim = INLAWiNim (data = df, code = code,
+inlaNimMissing = INLAWiNim (data = df, code = code,
                      modelData = inla_data,
                      modelConstants = const,
                      modelInits = idm_inits,
@@ -221,7 +222,7 @@ inlanim = INLAWiNim (data = df, code = code,
                      parametersToMonitor = c("eta"),
                      mcmcConfiguration =  list(n.chains = 1,
                                                n.iterations = 1000,
-                                               n.burnin = 500,
+                                               n.burnin = 200,
                                                n.thin = 1,
                                                setSeed = TRUE,
                                                samples=TRUE,
@@ -229,7 +230,7 @@ inlanim = INLAWiNim (data = df, code = code,
                                                summary = TRUE,
                                                WAIC = FALSE))
 
-save(inlanim, file = "missingCovariates.RData")
+save(inlaNimMissing, file = "missingCovariates.RData")
 ```
 
 ```{r,message=FALSE, warning=FALSE}

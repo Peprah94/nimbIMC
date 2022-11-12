@@ -133,6 +133,10 @@ INLAWiNim <- function(data,
                       modelConstants,
                       modelInits,
                       parametersToMonitor = c("beta", "tau", "intercept"),
+                      mcmcControl = NULL,
+                      mcmcSamplerChange = FALSE,
+                      parametersForSamplerChange = NULL,
+                      newSampler = NULL,
                       mcmcConfiguration = list(n.chains = 1,
                                                n.iterations = 10,
                                                n.burnin = 0,
@@ -142,6 +146,7 @@ INLAWiNim <- function(data,
                                                samplesAsCodaMCMC = TRUE,
                                                summary = TRUE,
                                                WAIC = FALSE)){
+
 
 
 
@@ -159,12 +164,21 @@ mwtc <- nimble::nimbleModel(code,
 Cmwtc <- nimble::compileNimble(mwtc,
                                showCompilerOutput = FALSE) #Have issues compiling
 
+if(!is.null(mcmcControl)){
+mcmcconf <- nimble::configureMCMC(Cmwtc,
+                                  monitors = parametersToMonitor,
+                                  control = mcmcControl)
+}else{
+  mcmcconf <- nimble::configureMCMC(Cmwtc,
+                                    monitors = parametersToMonitor)
+}
 
-mcmcconf <- nimble::configureMCMC(Cmwtc, monitors = parametersToMonitor,
-                                  control = list(scale = 0.75,
-                                                 adaptive = TRUE,
-                                                 propCov='identity',
-                                                 adaptInterval=50))
+if(mcmcSamplerChange == TRUE){
+  mcmcconf$removeSamplers(parametersForSamplerChange)
+  mcmcconf$addSampler(target = parametersForSamplerChange,
+                      type = newSampler,
+                      control=list(adaptInterval=10))
+}
 
 Rmcmc <- nimble::buildMCMC(mcmcconf)
 
@@ -176,6 +190,7 @@ cmcmc <- nimble::compileNimble(Rmcmc,
 
 
 # Run the MCMC
+startTime <- Sys.time()
 mcmc.out <- nimble::runMCMC(cmcmc,
                     niter = mcmcConfiguration[["n.iterations"]],
                     nchains = mcmcConfiguration[["n.chains"]],
@@ -188,6 +203,8 @@ mcmc.out <- nimble::runMCMC(cmcmc,
                     summary = mcmcConfiguration[["summary"]],
                     WAIC = mcmcConfiguration[["WAIC"]])
 
+endTime <- Sys.time()
+timeTaken <- as.numeric(endTime - startTime)
 #Output from the MCMC
 output <- mcmc.out$summary
 output
@@ -225,7 +242,8 @@ returnList = list(output=output,
                   scales=scales,
                   accept=accept,
                   prop_history=prop_history,
-                  mcmc.out=mcmc.out)
+                  mcmc.out=mcmc.out,
+                  timeTaken = timeTaken)
 return(returnList)
 }
 
@@ -293,6 +311,7 @@ INLAWiNimDataGenerating <- function(data,
 
 
   # Run the MCMC
+  startTime <- Sys.time()
   mcmc.out <- nimble::runMCMC(cmcmc,
                               niter = mcmcConfiguration[["n.iterations"]],
                               nchains = mcmcConfiguration[["n.chains"]],
@@ -304,7 +323,8 @@ INLAWiNimDataGenerating <- function(data,
                               samplesAsCodaMCMC = mcmcConfiguration[["samplesAsCodaMCMC"]],
                               summary = mcmcConfiguration[["summary"]],
                               WAIC = mcmcConfiguration[["WAIC"]])
-
+  endTime <- Sys.time()
+  timeTaken <- as.numeric(endTime - startTime)
   #Output from the MCMC
   output <- mcmc.out$summary
   output
@@ -342,7 +362,8 @@ INLAWiNimDataGenerating <- function(data,
                     scales=scales,
                     accept=accept,
                     prop_history=prop_history,
-                    mcmc.out=mcmc.out)
+                    mcmc.out=mcmc.out,
+                    timeTaken = timeTaken)
   return(returnList)
 }
 
