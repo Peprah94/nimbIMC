@@ -348,8 +348,8 @@ nspecies <- 2#nspecies: Number of species we want to simulate
 input <-{list(
   ecological = list(
     fixed.effect=list(
-      intercept = c(0.8, 2.5 ),
-      betacov = c(1.5, -0.12)
+      intercept = c(3.5,  1.5 ),
+      betacov = c(1.5, 4)
     ),
     hyperparameters = list(
       sigma2 = c(0.2, 1.2),
@@ -401,21 +401,21 @@ simulateddata <- generateCSData(input)
 nspecies = input$constants$n.species
 ## Covariates need to be in SpatialPixels format ##
 #Covariates for true intensity
-cov1.sp <- SpatialPointsDataFrame(coords = gridlocs,data = data.frame(cov=c(anti_t(rotate(rotate(covariate.im$v))))))
+cov1.sp <- SpatialPointsDataFrame(coords = gridlocs,data = data.frame(cov=c(myphdthesis::anti_t(myphdthesis::rotate(myphdthesis::rotate(covariate.im$v))))))
 r <- raster(cov1.sp)
-r1<-disaggregate(r, fact=res(r)/c(0.056,0.056))
+r1 <- disaggregate(r, fact=res(r)/c(0.056,0.056))
 cov1.rast <- rasterize(cov1.sp@coords,r1,cov1.sp$cov, fun=mean,na.rm=T)
 cov1.spix <- as(cov1.rast,"SpatialPixelsDataFrame")
 
 #Covariates for first thinning
-cov2.sp <- SpatialPointsDataFrame(coords = gridlocs,data = data.frame(cov=c(anti_t(rotate(rotate(covariate_thin.im$v))))))
+cov2.sp <- SpatialPointsDataFrame(coords = gridlocs,data = data.frame(cov=c(myphdthesis::anti_t(myphdthesis::rotate(myphdthesis::rotate(covariate_thin.im$v))))))
 r <- raster(cov2.sp)
 r1<-disaggregate(r, fact=res(r)/c(0.056,0.056))
 cov2.rast <- rasterize(cov2.sp@coords,r1,cov2.sp$cov, fun=mean,na.rm=T)
 cov2.spix <- as(cov2.rast,"SpatialPixelsDataFrame")
 
 #Covariate for second thinning
-cov3.sp <- SpatialPointsDataFrame(coords = gridlocs,data = data.frame(cov=c(anti_t(rotate(rotate(covariate_detect.im$v))))))
+cov3.sp <- SpatialPointsDataFrame(coords = gridlocs,data = data.frame(cov=c(myphdthesis::anti_t(myphdthesis::rotate(myphdthesis::rotate(covariate_detect.im$v))))))
 r <- raster(cov3.sp)
 r1<-disaggregate(r, fact=res(r)/c(0.056,0.056))
 cov3.rast <- rasterize(cov3.sp@coords,r1,cov3.sp$cov, fun=mean,na.rm=T)
@@ -444,6 +444,7 @@ for(i in 1:nspecies){
     detection_data[[i]] <- data_det
   }
 }
+
 #Organising as spatial dataframe
 data_det_spframe <- list()
 for(i in 1:nspecies){
@@ -502,9 +503,10 @@ CnimbleINLA <- compileNimble(nimbleINLADataGenerating)
 #                       0.1,0.1, 0.8, 0,
  #                      0, 0.05, 0.25, 0.7),
 #                     nrow=4, ncol=4, byrow = TRUE)
-
-class_prob <- matrix(c(0.9, 0.1,
-                       0.05, 0.95),
+cnt <- 0
+listout <- list()
+class_prob <- matrix(c(1, 0,
+                       0, 1),
                      nrow=2, ncol=2, byrow = TRUE)
 CnimbleINLA(class_prob)
 
@@ -588,7 +590,7 @@ inlanim = INLAWiNimDataGenerating(data = data_df,
                      modelInits = idm_inits,
                      fam = "nogaussian",
                      parametersToMonitor = c("omega"),
-                     mcmcConfiguration =  list(n.chains = 1,
+                     mcmcConfiguration =  list(n.chains = 4,
                                                n.iterations = 1000,
                                                n.burnin = 200,
                                                n.thin = 1,

@@ -183,7 +183,8 @@ idxs = input$idxs
 
   return(list(trueecological=Eco_PP,
               firststage=firststage,
-              secondstage=secondstage,thirdstage=thirdstage,
+              secondstage=secondstage,
+              thirdstage=thirdstage,
               species_raster=species_rast,
               lambda_obs_raster=lambda_obs_raster))
 

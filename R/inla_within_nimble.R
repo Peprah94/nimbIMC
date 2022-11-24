@@ -137,6 +137,7 @@ INLAWiNim <- function(data,
                       mcmcSamplerChange = FALSE,
                       parametersForSamplerChange = NULL,
                       newSampler = NULL,
+                      newSamplerControl = NULL,
                       mcmcConfiguration = list(n.chains = 1,
                                                n.iterations = 10,
                                                n.burnin = 0,
@@ -145,7 +146,7 @@ INLAWiNim <- function(data,
                                                samples=TRUE,
                                                samplesAsCodaMCMC = TRUE,
                                                summary = TRUE,
-                                               WAIC = FALSE)){
+                                               WAIC = TRUE)){
 
 
 
@@ -167,24 +168,28 @@ Cmwtc <- nimble::compileNimble(mwtc,
 if(!is.null(mcmcControl)){
 mcmcconf <- nimble::configureMCMC(Cmwtc,
                                   monitors = parametersToMonitor,
-                                  control = mcmcControl)
+                                  control = mcmcControl,
+                                  enableWAIC = TRUE)
 }else{
   mcmcconf <- nimble::configureMCMC(Cmwtc,
-                                    monitors = parametersToMonitor)
+                                    monitors = parametersToMonitor,
+                                    enableWAIC = TRUE
+                                    )
 }
 
 if(mcmcSamplerChange == TRUE){
   mcmcconf$removeSamplers(parametersForSamplerChange)
   mcmcconf$addSampler(target = parametersForSamplerChange,
                       type = newSampler,
-                      control=list(adaptInterval=10))
+                      control = newSamplerControl)
 }
 
 Rmcmc <- nimble::buildMCMC(mcmcconf)
 
 # Compile
 cmcmc <- nimble::compileNimble(Rmcmc,
-                       project = Cmwtc, resetFunctions = TRUE)
+                       project = Cmwtc,
+                       resetFunctions = TRUE)
 
 #MCMC Configurations
 

@@ -95,7 +95,7 @@ message("Defining components of the INLABru")
                                                   i,"+cov3",i,"+fun1(beta0det",i,", cov3",i,")",
                                                   "+funtionOmega(",paste0("beta0", 1:nspecies, collapse = ","),
                                                   ",",  paste0("cov1", 1:nspecies, collapse = ","),
-                                                  ",",  paste0("cov1", 1:nspecies, collapse = ","), ",",i, ")")),
+                                                  ",",  paste0("w1", 1:nspecies, collapse = ","),  ")")),
                       data = Eco_PPFinal_detect[[i]],
                       #components = cmp,
                       domain = list(coordinates = mesh),
