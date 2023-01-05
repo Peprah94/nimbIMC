@@ -185,12 +185,12 @@ message("Defining components of the INLABru")
                          options = list(control.inla = list(strategy = "gaussian",
                                                             int.strategy = "eb"),
                                         bru_method = list(
-                                          taylor = "pandemic",
-                                          search = "all",
-                                          factor = (1 + sqrt(5)) / 2,
-                                          rel_tol = 0.01,
-                                          max_step = 2,
-                                          lin_opt_method = "onestep"
+                                          #taylor = "pandemic",
+                                         # search = "all",
+                                          #factor = (1 + sqrt(5)) / 2,
+                                          rel_tol = 0.01#,
+                                          #max_step = 2,
+                                          #lin_opt_method = "onestep"
                                         ), #change to 0.01
                                         bru_max_iter=20)
     )

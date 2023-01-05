@@ -460,8 +460,8 @@ coordsmat <- matrix(c(0,0,3,0,3,3,0,3,0,0),ncol=2,byrow=T)
 poly <- SpatialPolygons(list(Polygons(list(Polygon(coordsmat)),ID=1)))
 
 ## the mesh
-mesh <- inla.mesh.2d(loc.domain = coordsmat, offset = c(0.3, 1),
-                     max.edge = c(0.1, 0.5), cutoff = 0.2)
+mesh <- inla.mesh.2d(loc.domain = coordsmat, offset = c(0.5, 1),
+                     max.edge = c(0.5, 2), cutoff = 0.2)
 
 ## SPDEs definition
 spdes <- list()
@@ -505,8 +505,12 @@ CnimbleINLA <- compileNimble(nimbleINLADataGenerating)
 #                     nrow=4, ncol=4, byrow = TRUE)
 cnt <- 0
 listout <- list()
-class_prob <- matrix(c(1, 0,
-                       0, 1),
+# class_prob <- matrix(c(1, 0,
+#                        0, 1),
+#                      nrow=2, ncol=2, byrow = TRUE)
+
+class_prob <- matrix(c(0.7, 0.3,
+                       0.35, 0.65),
                      nrow=2, ncol=2, byrow = TRUE)
 CnimbleINLA(class_prob)
 

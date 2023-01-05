@@ -1,5 +1,6 @@
 #multinomial data
 library(nimble)
+library(myphdthesis)
 n.species <- 2; n.sites = 1000
 lambda <-  matrix(NA, nrow = n.sites, ncol = n.species)
 alpha <- c(2); beta = c(3); cov = rnorm(n.sites)
@@ -108,7 +109,7 @@ Cmwtc <- nimble::compileNimble(mwtc,
   mcmcconf <- nimble::configureMCMC(Cmwtc,
                                     monitors = c("alpha", "beta", "omega"))
 
-
+mcmcconf$removeSampler("omega")
   mcmcconf$addSampler(target = c("omega"),
                       type = "myRW_dirichlet")
 
