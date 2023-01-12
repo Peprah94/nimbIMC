@@ -1,0 +1,550 @@
+---
+title: "Importance Sampling for Particle filters"
+author: "Kwaku Peprah Adjei"
+format: pdf
+editor: visual
+---
+
+## Introduction
+
+This document is a summary of the work done on updating a previously run occupancy model with new data. This is done by saving the weights from the previous time periods and using them as updates for the current year.
+
+The filtering, predicting and updating stages are defined as follows:
+
+In all cases, I simulate a data from this model with $N=50$ years and fit the `auxilliary particle filter` under three scenarios:
+
+-   Baseline: When we have all the data to the current time point and fit the `auxilliary particle filter` to the data up to time $N$.
+
+-   Reduced: In this case, we have data up to time $N=40$. We fit the `auxilliary particle filter` to the data up to time $N=50$, with the last $10$ time points having the observed data as NAs.
+
+-   Updated: In this scenario, we update the reduced model with the new $10$ time points data. We use the weights from the reduced model to update the model for the last $10$ time points.
+
+## Packages needed for this document
+
+```{r, message = FALSE}
+suppressMessages(library(nimble))
+suppressMessages(library(myphdthesis)) #install_github("Peprah94/myphdthesis") to install this package
+library(kableExtra)
+library(ggplot2)
+library(ggmcmc)
+#library(nimbleSMC)
+set.seed(1994)
+```
+
+## Case 1: No top-level parameters
+
+This section explores the performance of the `particleFilterUpdate` for models with no top level parameters. That is, aside the latent variables and the observed data, all the nodes are deterministic.
+
+*Model*
+
+```{=tex}
+\begin{equation}
+\begin{split}
+x_0 &= 0 \\
+x_t &\sim N(0.8 x_{t-1}, 1) \\
+y_t &\sim N(x_{t}, 0.5^2)
+\end{split}
+\end{equation}
+```
+Let us write some code to try out:
+
+```{r}
+exampleCode <- nimbleCode({
+  x0 ~ dnorm(0, var = 1)
+  x[1] ~ dnorm(.8 * x0, var = 1)
+  y[1] ~ dnorm(x[1], var = .5)
+  for(t in 2:N){
+    x[t] ~ dnorm(.8 * x[t-1], var = 1)
+    y[t] ~ dnorm(x[t], var = .5)
+  }
+})
+```
+
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+N = 50
+x0 <- 0
+xObs <- yObs <- numeric(N)
+xObs[1] <- rnorm(1, .8*x0, sd = 1)
+yObs[1] <- rnorm(1, xObs[1], sd = sqrt(0.5))
+for(t in 2: N){
+xObs[t] <- rnorm(1, 0.8 * xObs[t-1], sd = 1)
+yObs[t] <- rnorm(1,xObs[t], sd = sqrt(0.5) )
+}
+```
+
+a.  We fit a `auxilliary particle filter model` assuming we have all the data available.
+
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+model <- nimbleModel(code = exampleCode, data = list(y = yObs), constants = list(N=N),
+                     inits = list(x0 = 0, x = xObs))
+baselineModel <- buildAuxiliaryFilter(model, 'x',
+                                control = list(saveAll = TRUE, lookahead = "mean", smoothing = FALSE))
+Cmodel <- compileNimble(model)
+cbaselineModel <- compileNimble(baselineModel, project = model)
+
+logLik <- cbaselineModel$run(m = 10000)
+ESS <- cbaselineModel$returnESS()
+
+auxWts <- as.matrix(cbaselineModel$mvWSamples, "wts")
+baselineWeights <- as.matrix(cbaselineModel$mvWSamples, "wts")
+baselineUnweightedSamples <- as.matrix(cbaselineModel$mvWSamples, "x")
+baselineWeightedSamples <- as.matrix(cbaselineModel$mvEWSamples, "x")
+
+plotDataBaseline <- data.frame(t = seq(1,N, 1),
+                       true = xObs,
+                       unwtsXbaseline = apply(baselineUnweightedSamples,2,median),
+                       wtsXBaseline = colMeans(baselineWeightedSamples)
+                       #unwtsX = baselineUnweightedSamples[1,],
+                       #wtsX = baselineWeightedSamples[1,]
+                       )
+```
+
+```{r, include=FALSE, echo=TRUE}
+#| label: table_baseline
+#| fig-cap: The weighted and unweighted samples from the particle Filter
+#| warning: false
+#| message: false
+#| 
+head(plotDataBaseline)%>%
+  kbl() %>%
+ kable_material(c("striped", "hover"))
+```
+
+We plot the results:
+
+```{r, include=FALSE, echo=TRUE}
+plotDataBaseline%>%
+  reshape2::melt(., id.vars = "t")%>%
+ggplot()+
+  geom_line(mapping = aes(x = t, y = value, linetype = variable, col = variable ))
+```
+
+b.  Case 2: Have new data for $10$ years
+
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+reducedModel <- model$newModel(replicate = TRUE)
+
+#set the years without data as NA
+reducedModel$y[41:50] <- NA
+reducedModel$x[41:50] <- NA
+compileNimble(reducedModel)
+
+reducedAuxModel <- buildAuxiliaryFilter(reducedModel, 'x',
+                                control = list(saveAll = TRUE, lookahead = "mean", smoothing = FALSE))
+
+cReducedModel <- compileNimble(reducedAuxModel, project = reducedModel)
+
+logLik <- cReducedModel$run(m = 10000)
+ESS <- cReducedModel$returnESS()
+
+auxWts <- as.matrix(cReducedModel$mvWSamples, "wts")
+reducedWeights <- as.matrix(cReducedModel$mvWSamples, "wts")
+reducedUnweightedSamples <- as.matrix(cReducedModel$mvWSamples, "x")
+reducedWeightedSamples <- as.matrix(cReducedModel$mvEWSamples, "x")
+
+plotDataReduced <- data.frame(t = seq(1,N, 1),
+                       true = xObs,
+                       unwtsXReduced = apply(reducedUnweightedSamples,2,median),
+                       wtsXReduced = colMeans(reducedWeightedSamples)
+                       #unwtsX = baselineUnweightedSamples[1,],
+                       #wtsX = baselineWeightedSamples[1,]
+                       )
+```
+
+```{r, include=FALSE, echo=TRUE}
+#| label: table_reduced
+#| fig-cap: The weighted and unweighted samples from the particle Filter
+#| warning: false
+#| message: false
+#| 
+head(plotDataReduced)%>%
+  kbl() %>%
+ kable_material(c("striped", "hover"))
+```
+
+We plot the results:
+
+```{r, include=FALSE, echo=TRUE}
+plotDataReduced%>%
+  reshape2::melt(., id.vars = "t")%>%
+ggplot()+
+  geom_line(mapping = aes(x = t, y = value, linetype = variable, col = variable ))
+```
+
+c.  Updating with new data
+
+```{r,  warning=FALSE, message=FALSE}
+updatedModel <- model$newModel(replicate = TRUE)
+
+#set the years without data as NA
+updatedModel$x[41:50] <- NA
+compileNimble(updatedModel)
+
+updatedAuxModel <- buildAuxiliaryFilterUpdate(updatedModel, 'x',reducedWeights,
+                                        reducedUnweightedSamples,reducedWeightedSamples,
+                                control = list(saveAll = TRUE, lookahead = "mean", smoothing = FALSE,  M = 10, iNodePrev = 40))
+
+cUpdatedModel <- compileNimble(updatedAuxModel, project = updatedModel)
+
+logLik <- cUpdatedModel$run(m = 10000)
+ESS <- cUpdatedModel$returnESS()
+
+auxWts <- as.matrix(cUpdatedModel$mvWSamples, "wts")
+updatedWeights <- as.matrix(cUpdatedModel$mvWSamples, "wts")
+updatedUnweightedSamples <- as.matrix(cUpdatedModel$mvWSamples, "x")
+updatedWeightedSamples <- as.matrix(cUpdatedModel$mvEWSamples, "x")
+
+plotDataUpdated <- data.frame(t = seq(1,N, 1),
+                       true = xObs,
+                       unwtsXUpdated = apply(updatedUnweightedSamples,2,median),
+                       wtsXUpdated = colMeans(updatedWeightedSamples)
+                       #unwtsX = baselineUnweightedSamples[1,],
+                       #wtsX = baselineWeightedSamples[1,]
+                       )
+```
+
+```{r, include=FALSE, echo=TRUE}
+#| label: table_updated
+#| fig-cap: The weighted and unweighted samples from the particle Filter
+#| warning: false
+#| message: false
+#| 
+head(plotDataUpdated)%>%
+  kbl() %>%
+ kable_material(c("striped", "hover"))
+```
+
+We plot the results:
+
+```{r,  warning=FALSE, message=FALSE}
+dfDataBaseline <- plotDataBaseline%>%
+  reshape2::melt(., id.vars = "t")
+
+dfDataReduced <- plotDataReduced%>%
+  reshape2::melt(., id.vars = "t")
+
+dfDataUpdated <- plotDataUpdated%>%
+  reshape2::melt(., id.vars = "t")
+                
+
+plotData <- rbind(dfDataBaseline,
+                  dfDataReduced ,
+                  dfDataUpdated)
+
+plotData%>%
+ggplot()+
+  geom_line(mapping = aes(x = t, y = value, linetype = variable, col = variable))+
+  ylab("Latent samples from PFs")+
+  theme_classic()
+```
+
+# Case 2: MCMC for top level nodes
+
+*Model*
+
+```{=tex}
+\begin{equation}
+\begin{split}
+x_1 & \sim N(\mu_0, 1) \\
+x_t &\sim N(a x_{t-1} + b, 1) \\
+y_t &\sim N(c *x_{t}, 1)
+\end{split}
+\end{equation}
+```
+```{r, warning=FALSE, message=FALSE}
+# simulate some data
+sim2 <- function(a, b, t, sigPN, sigOE, df){
+  x <- y <- numeric(t)
+  x[1] <- rnorm(1, b/(1-a), sigPN/(sqrt(1- a^2)) )
+#https://stats.stackexchange.com/questions/567944/how-can-i-sample-from-a-shifted-and-scaled-student-t-distribution-with-a-specifi
+  y[1] <- x[1] + (sigOE * (sqrt(df -2)/df) * rt(1, df)) 
+  
+for(k in 2:t){
+  x[k] <- rnorm(1, a*x[k -1] + b, sigPN)
+  y[k] <- x[k-1] + (sigOE * (sqrt(df -2)/df) * rt(1, df)) 
+}
+  return(list(x=x, y=y))
+}
+
+simData <- sim2(a = 0.5, 
+                b = 3, 
+                t = 50, 
+                sigPN = 1, 
+                sigOE = 1,
+                df = 5)
+
+#Set the number of iteration
+parNum <- 5000
+```
+
+a.  Fitting the baseline model
+
+We first fit an `auxilliary PF` model to the data, assuming we have the data to time $t = 50$.
+
+```{r,  warning=FALSE, message=FALSE}
+
+#NIMBLE code
+stateSpaceCode <- nimbleCode({
+  a ~ dunif(-0.9999, 0.9999)
+  b ~ dnorm(0, sd = 1000)
+  sigPN ~ dunif(1e-04, 1)
+  sigOE ~ dunif(1e-04, 1)
+  x[1] ~ dnorm(b/(1 - a), sd = sigPN/sqrt((1-a*a)))
+  y[1] ~ dt(mu = x[1], sigma = sigOE, df = 5)
+  for (i in 2:t) {
+    x[i] ~ dnorm(a * x[i - 1] + b, sd = sigPN)
+    y[i] ~ dt(mu = x[i], sigma = sigOE, df = 5)
+  }
+})
+
+#set inputs for the nimbleModel
+data <- list(
+  y = simData$y
+)
+constants <- list(
+  t = 50
+)
+inits <- list(
+  a = 0,
+  b = .5,
+  sigPN = .1,
+  sigOE = .05,
+  x = simData$x
+)
+
+## NIMBLE model
+stateSpaceModel <- nimbleModel(stateSpaceCode,
+                               data = data,
+                               constants = constants,
+                               inits = inits,
+                               check = FALSE)
+
+## build bootstrap filter and compile model and filter
+AuxFilter <- buildAuxiliaryFilter(stateSpaceModel, 
+                                  nodes = 'x',
+                                  control = list(saveAll = TRUE,
+                                                 lookahead = 'mean'))
+
+stateSpaceMCMCconf <- configureMCMC(stateSpaceModel, nodes = NULL)
+
+stateSpaceMCMCconf$addSampler(target = c('a', 'b', 'sigPN', 'sigOE'),
+                              type = 'RW_PF_block', 
+                              control = list(latents = 'x', 
+                                             pfControl = list(saveAll = TRUE), 
+                                             pfNparticles = 10000,
+                                             pf = AuxFilter ))
+
+stateSpaceMCMCconf$addMonitors("x")
+
+stateSpaceMCMC <- buildMCMC(stateSpaceMCMCconf)
+compiledList <- compileNimble(stateSpaceModel, 
+                              stateSpaceMCMC, 
+                              resetFunctions = TRUE)
+
+mcmc.out <- runMCMC(compiledList$stateSpaceMCMC,
+                    niter = 10000,
+                    nchains =3,
+                    nburnin = 500,
+                    #inits = initsList,
+                    #thin = 5,
+                    setSeed = TRUE,
+                    samples=TRUE,
+                    samplesAsCodaMCMC = TRUE,
+                    summary = TRUE,
+                    WAIC = FALSE)
+
+#compile the PF model
+#compiledList <- compileNimble(stateSpaceModel, AuxFilter)
+
+## run compiled filter with 10,000 particles.  
+## note that the auxilliary filter returns an estimate of the log-likelihood of the model.
+#compiledList$AuxFilter$run(10000)
+
+t = 50
+
+#Extract weights and samples of latent variables
+#auxWts <- as.matrix(compiledList$AuxFilter$mvWSamples,"wts")
+#baselineWeights <- as.matrix(compiledList$AuxFilter$mvWSamples,"wts")
+#baselineUnweightedSamples <- as.matrix(compiledList$AuxFilter$mvWSamples,"x")
+#baselineWeightedSamples <- as.matrix(compiledList$AuxFilter$mvEWSamples,"x")
+
+# save the results for plotting
+plotDataBaseline <- data.frame(t = seq(1,t, 1),
+                       true = simData$x,
+                       wtsXBaseline =  mcmc.out$summary$all.chains[ -c(1:4),1]                   )
+
+```
+
+We present the summary of the results from the `particle MCMC`. We also present the disgnostic plots
+
+```{r, warning=FALSE, message=FALSE}
+mcmc.out$summary$all.chains
+
+# Checking convergence of parameters
+mcmclist <- ggmcmc::ggs(mcmc.out$samples)
+#ggs_density(mcmclist)
+g1 <- ggs_traceplot(mcmclist, family = "a")
+ggg1 <- ggs_density(mcmclist, family = "a")
+gg2 <- ggs_traceplot(mcmclist, family = "b")
+ggg2 <- ggs_density(mcmclist, family = "b")
+g3 <- ggs_traceplot(mcmclist, family = "sigOE")
+gg3 <- ggs_density(mcmclist, family = "sigOE")
+g4 <- ggs_traceplot(mcmclist, family = "sigPN")
+gg4 <- ggs_density(mcmclist, family = "sigPN")
+ggpubr::ggarrange(g1, ggg1,  gg2,ggg2,  g3, gg3,g4, gg4, ncol = 2, nrow = 2)
+
+```
+
+b.  Reduced model with last $t= 10$ years missing
+
+```{r, warning=FALSE, message=FALSE}
+reducedModel <- stateSpaceModel$newModel(replicate =TRUE)
+
+#set the years without data as NA
+reducedModel$y[41:50] <- NA
+reducedModel$x[41:50] <- NA
+
+# Compile the model to update the model with these new data
+compileNimble(reducedModel)
+
+#create the auxilliary PF
+reducedAuxModel <- buildAuxiliaryFilter(reducedModel, 'x',
+                                        control = list(saveAll = TRUE, lookahead = "mean", smoothing = FALSE))
+
+#compile the Auxilliary PF
+cReducedModel <- compileNimble(reducedAuxModel, project = reducedModel)
+
+# Run the PF to have access to the weights
+logLik <- cReducedModel$run(m = 10000)
+ESS <- cReducedModel$returnESS()
+
+# extract the weights
+auxWts <- as.matrix(cReducedModel$mvWSamples, "wts")
+reducedWeights <- as.matrix(cReducedModel$mvWSamples, "wts")
+reducedUnweightedSamples <- as.matrix(cReducedModel$mvWSamples, "x")
+reducedWeightedSamples <- as.matrix(cReducedModel$mvEWSamples, "x")
+
+# Save the data for plotting
+plotDataReduced <- data.frame(t = seq(1,t, 1),
+                              true = stateSpaceModel$x,
+                              wtsXReduced = colMeans(reducedWeightedSamples)
+                              #unwtsX = baselineUnweightedSamples[1,],
+                              #wtsX = baselineWeightedSamples[1,]
+)
+
+
+
+```
+
+c\. We fit the model with new streams of data:
+
+```{r, warning=FALSE, echo=FALSE}
+
+# Replicate the data
+updatedModel <-stateSpaceModel$newModel(replicate = TRUE)
+
+
+updatedAuxModel <- buildAuxiliaryFilterUpdate(updatedModel, 
+                                              'x',
+                                              reducedWeights,
+                                              reducedUnweightedSamples,
+                                              reducedWeightedSamples,
+                                              control = list(saveAll = TRUE, 
+                                                             lookahead = "mean", 
+                                                             smoothing = FALSE, 
+                                                             M = 11, 
+                                                             iNodePrev = 39))
+
+# configure MCMC 
+updatedSpaceMCMCconf <- configureMCMC(updatedModel, 
+                                      nodes = NULL)
+
+
+
+## add a block pMCMC sampler for a, b, sigPN, and sigOE 
+updatedSpaceMCMCconf$addSampler(target = c('a', 'b', 'sigPN', 'sigOE'),
+                              type = 'RW_PF_block', 
+                              control = list(latents = 'x', 
+                                             pfControl = list(saveAll = TRUE), 
+                                             pfNparticles = 10000,
+                                             pf = updatedAuxModel ))
+
+# Add this to also monitor the latent variables
+updatedSpaceMCMCconf$addMonitors("x")
+
+## build and compile pMCMC sampler
+updatedStateSpaceMCMC <- buildMCMC(updatedSpaceMCMCconf)
+
+compiledList <- compileNimble(updatedModel, 
+                              updatedStateSpaceMCMC, 
+                              resetFunctions = TRUE)
+
+mcmc.out <- runMCMC(compiledList$updatedStateSpaceMCMC,
+                    niter = 10000,
+                    nchains =3,
+                    nburnin = 500,
+                    #inits = initsList,
+                    #thin = 5,
+                    setSeed = TRUE,
+                    samples=TRUE,
+                    samplesAsCodaMCMC = TRUE,
+                    summary = TRUE,
+                    WAIC = FALSE)
+
+```
+
+We summarize the results.
+
+```{r, warning = FALSE, message=FALSE}
+
+
+
+mcmc.out$summary$all.chains
+
+# Checking convergence of parameters
+mcmclist <- ggmcmc::ggs(mcmc.out$samples)
+#ggs_density(mcmclist)
+g1 <- ggs_traceplot(mcmclist, family = "a")
+ggg1 <- ggs_density(mcmclist, family = "a")
+gg2 <- ggs_traceplot(mcmclist, family = "b")
+ggg2 <- ggs_density(mcmclist, family = "b")
+g3 <- ggs_traceplot(mcmclist, family = "sigOE")
+gg3 <- ggs_density(mcmclist, family = "sigOE")
+g4 <- ggs_traceplot(mcmclist, family = "sigPN")
+gg4 <- ggs_density(mcmclist, family = "sigPN")
+ggpubr::ggarrange(g1, ggg1,  gg2,ggg2,  g3, gg3,g4, gg4, ncol = 2, nrow = 2)
+
+
+```
+
+Plotting everything together
+
+```{r, message=FALSE, warning=FALSE}
+plotDataUpdated <- data.frame(t = seq(1,t, 1),
+                       true = simData$x,
+                       wtsXUpdatedline =  mcmc.out$summary$all.chains[ -c(1:4),1]                   )
+
+dfDataBaseline <- plotDataBaseline%>%
+  reshape2::melt(., id.vars = "t")
+
+dfDataReduced <- plotDataReduced%>%
+  reshape2::melt(., id.vars = "t")
+
+dfDataUpdated <- plotDataUpdated%>%
+  reshape2::melt(., id.vars = "t")
+                
+
+plotData <- rbind(dfDataBaseline,
+                  dfDataReduced ,
+                  dfDataUpdated)
+
+plotData%>%
+ggplot()+
+  geom_line(mapping = aes(x = t, y = value, linetype = variable, col = variable))+
+  ylab("Latent samples from PFs")+
+  theme_classic()
+```
+
+## To do for next week
+
+In the next week, I will look at the MCMC with particle filter. I have editted the code for sampling, but there seems to be some bugs. That will be my work for next week.
