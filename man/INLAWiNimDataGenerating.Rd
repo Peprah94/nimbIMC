@@ -11,7 +11,7 @@ INLAWiNimDataGenerating(
   modelData,
   modelConstants,
   modelInits,
-  parametersToMonitor = c("beta", "tau", "intercept"),
+  parametersToMonitor = c("omega"),
   mcmcConfiguration = list(n.chains = 1, n.iterations = 10, n.burnin = 0, n.thin = 1,
     setSeed = TRUE, samples = TRUE, samplesAsCodaMCMC = TRUE, summary = TRUE, WAIC =
     FALSE)

@@ -265,9 +265,9 @@ buildAuxiliaryFilterUpdate <- nimbleFunction(
     lookahead <- control[['lookahead']]
     iNodePrev <- control[['iNodePrev']]
     initModel <- control[['initModel']]
-    mvWSamplesWTSaved <- control[['mvWSamplesWTSaved']]
-    mvWSamplesXSaved <- control[['mvWSamplesXSaved']]
-    mvEWSamplesXSaved <- control[['mvEWSamplesXSaved']]
+    mvWSamplesWTSaved <- control[['mvWSamplesWTSaved1']]
+    mvWSamplesXSaved <- control[['mvWSamplesXSaved1']]
+    mvEWSamplesXSaved <- control[['mvEWSamplesXSaved1']]
     M <- control[['M']]
     resamplingMethod <- control[['resamplingMethod']]
     if(is.null(silent)) silent <- TRUE
@@ -448,141 +448,141 @@ buildAuxiliaryFilterUpdate <- nimbleFunction(
 
 
 
-##################
-
-buildAuxiliaryFilterUpdate1 <- nimbleFunction(
-  name = 'buildAuxiliaryFilterUpdate1',
-  setup = function(model, nodes,mvWSamplesWTSaved,
-                   mvWSamplesXSaved, mvEWSamplesXSaved, control = list()) {
-
-    ## Control list extraction.
-    saveAll <- control[['saveAll']]
-    smoothing <- control[['smoothing']]
-    silent <- control[['silent']]
-    timeIndex <- control[['timeIndex']]
-    lookahead <- control[['lookahead']]
-    initModel <- control[['initModel']]
-    iNodePrev <- control[['iNodePrev']]
-    resamplingMethod <- control[['resamplingMethod']]
-    if(is.null(silent)) silent <- TRUE
-    if(is.null(saveAll)) saveAll <- FALSE
-    if(is.null(smoothing)) smoothing <- FALSE
-    if(is.null(lookahead)) lookahead <- 'simulate'
-    if(is.null(initModel)) initModel <- TRUE
-    if(!saveAll & smoothing) stop("must have saveAll = TRUE for smoothing to
-                                  work")
-    if(lookahead == "mean"){
-      errors <- sapply(model$expandNodeNames(nodes), function(node){
-        tryCatch(getParam(model, node, 'mean'), error=function(a){
-          return("error")})})
-      if(any(errors == "error", na.rm=TRUE))
-        stop("cannot use 'mean' lookahead for this model, try 'simulate'")
-    }
-    else if(lookahead != "simulate"){
-      stop("lookahead argument must be either 'simulate' or 'mean'")
-    }
-    if(is.null(resamplingMethod)) resamplingMethod <- 'default'
-    if(!(resamplingMethod %in% c('default', 'multinomial', 'systematic', 'stratified',
-                                 'residual')))
-      stop('resamplingMethod must be one of: "default", "multinomial", "systematic",
-           "stratified", or "residual". ')
-
-    ## Latent state info.
-    nodes <- findLatentNodes(model, nodes, timeIndex)
-
-    dims <- lapply(nodes, function(n) nimDim(model[[n]]))
-    if(length(unique(dims)) > 1)
-      stop('sizes or dimensions of latent states varies')
-    vars <- model$getVarNames(nodes =  nodes)
-
-    my_initializeModel <- initializeModel(model, silent = silent)
-
-
-    # Create mv variables for x state and sampled x states.  If saveAll=TRUE,
-    # the sampled x states will be recorded at each time point.
-    modelSymbolObjects <- model$getSymbolTable()$getSymbolObjects()[vars]
-    if(saveAll){
-
-      names <- sapply(modelSymbolObjects, function(x)return(x$name))
-      type <- sapply(modelSymbolObjects, function(x)return(x$type))
-      size <- lapply(modelSymbolObjects, function(x)return(x$size))
-      mvEWSamples <- modelValues(modelValuesConf(vars = names,
-                                                 types = type,
-                                                 sizes = size))
-
-      names <- c(names, "wts")
-      type <- c(type, "double")
-      size$wts <- length(dims)
-      ## Only need one weight per particle (at time T) if smoothing == TRUE.
-      if(smoothing){
-        size$wts <- 1
-      }
-      mvWSamples  <- modelValues(modelValuesConf(vars = names,
-                                                 types = type,
-                                                 sizes = size))
-
-    }
-    else{
-      names <- sapply(modelSymbolObjects, function(x)return(x$name))
-      type <- sapply(modelSymbolObjects, function(x)return(x$type))
-      size <- lapply(modelSymbolObjects, function(x)return(x$size))
-      size[[1]] <- as.numeric(dims[[1]])
-
-      mvEWSamples <- modelValues(modelValuesConf(vars = names,
-                                                 types = type,
-                                                 sizes = size))
-
-      names <- c(names, "wts")
-      type <- c(type, "double")
-      size$wts <- 1
-      mvWSamples  <- modelValues(modelValuesConf(vars = names,
-                                                 types = type,
-                                                 sizes = size))
-    }
-
-    names <- names[1]
-    auxStepFunctions <- nimbleFunctionList(auxStepVirtual)
-    for(iNode in seq_along(nodes))
-      auxStepFunctions[[iNode]] <- auxFStep(model, mvEWSamples, mvWSamples,
-                                            nodes, iNode, names, saveAll,
-                                            smoothing, lookahead,
-                                            resamplingMethod, silent)
-
-    essVals <- rep(0, length(nodes))
-    lastLogLik <- -Inf
-  },
-  run = function(m = integer(default = 10000)) {
-    returnType(double())
-    declare(logL, double())
-    if(initModel == TRUE) my_initializeModel$run()
-    resize(mvEWSamples, m)
-    resize(mvWSamples, m)
-    logL <- 0
-    for(iNode in seq_along(auxStepFunctions)) {
-      logL <- logL + auxStepFunctions[[iNode]]$run(m)
-      essVals[iNode] <<- auxStepFunctions[[iNode]]$returnESS()
-
-      ## When all particles have 0 weight, likelihood becomes NAN
-      ## this happens if top-level params have bad values - possible
-      ## during pmcmc for example.
-      if(is.nan(logL)) {lastLogLik <<- -Inf; return(-Inf)}
-      if(logL == -Inf) {lastLogLik <<- logL; return(logL)}
-      if(logL == Inf) {lastLogLik <<- -Inf; return(-Inf)}
-    }
-    lastLogLik <<- logL
-    return(logL)
-  },
-  methods = list(
-    getLastLogLik = function() {
-      return(lastLogLik)
-      returnType(double())
-    },
-    setLastLogLik = function(lll = double()) {
-      lastLogLik <<- lll
-    },
-    returnESS = function(){
-      returnType(double(1))
-      return(essVals)
-    }
-  )
-)
+# ##################
+#
+# buildAuxiliaryFilterUpdate1 <- nimbleFunction(
+#   name = 'buildAuxiliaryFilterUpdate1',
+#   setup = function(model, nodes,mvWSamplesWTSaved,
+#                    mvWSamplesXSaved, mvEWSamplesXSaved, control = list()) {
+#
+#     ## Control list extraction.
+#     saveAll <- control[['saveAll']]
+#     smoothing <- control[['smoothing']]
+#     silent <- control[['silent']]
+#     timeIndex <- control[['timeIndex']]
+#     lookahead <- control[['lookahead']]
+#     initModel <- control[['initModel']]
+#     iNodePrev <- control[['iNodePrev']]
+#     resamplingMethod <- control[['resamplingMethod']]
+#     if(is.null(silent)) silent <- TRUE
+#     if(is.null(saveAll)) saveAll <- FALSE
+#     if(is.null(smoothing)) smoothing <- FALSE
+#     if(is.null(lookahead)) lookahead <- 'simulate'
+#     if(is.null(initModel)) initModel <- TRUE
+#     if(!saveAll & smoothing) stop("must have saveAll = TRUE for smoothing to
+#                                   work")
+#     if(lookahead == "mean"){
+#       errors <- sapply(model$expandNodeNames(nodes), function(node){
+#         tryCatch(getParam(model, node, 'mean'), error=function(a){
+#           return("error")})})
+#       if(any(errors == "error", na.rm=TRUE))
+#         stop("cannot use 'mean' lookahead for this model, try 'simulate'")
+#     }
+#     else if(lookahead != "simulate"){
+#       stop("lookahead argument must be either 'simulate' or 'mean'")
+#     }
+#     if(is.null(resamplingMethod)) resamplingMethod <- 'default'
+#     if(!(resamplingMethod %in% c('default', 'multinomial', 'systematic', 'stratified',
+#                                  'residual')))
+#       stop('resamplingMethod must be one of: "default", "multinomial", "systematic",
+#            "stratified", or "residual". ')
+#
+#     ## Latent state info.
+#     nodes <- findLatentNodes(model, nodes, timeIndex)
+#
+#     dims <- lapply(nodes, function(n) nimDim(model[[n]]))
+#     if(length(unique(dims)) > 1)
+#       stop('sizes or dimensions of latent states varies')
+#     vars <- model$getVarNames(nodes =  nodes)
+#
+#     my_initializeModel <- initializeModel(model, silent = silent)
+#
+#
+#     # Create mv variables for x state and sampled x states.  If saveAll=TRUE,
+#     # the sampled x states will be recorded at each time point.
+#     modelSymbolObjects <- model$getSymbolTable()$getSymbolObjects()[vars]
+#     if(saveAll){
+#
+#       names <- sapply(modelSymbolObjects, function(x)return(x$name))
+#       type <- sapply(modelSymbolObjects, function(x)return(x$type))
+#       size <- lapply(modelSymbolObjects, function(x)return(x$size))
+#       mvEWSamples <- modelValues(modelValuesConf(vars = names,
+#                                                  types = type,
+#                                                  sizes = size))
+#
+#       names <- c(names, "wts")
+#       type <- c(type, "double")
+#       size$wts <- length(dims)
+#       ## Only need one weight per particle (at time T) if smoothing == TRUE.
+#       if(smoothing){
+#         size$wts <- 1
+#       }
+#       mvWSamples  <- modelValues(modelValuesConf(vars = names,
+#                                                  types = type,
+#                                                  sizes = size))
+#
+#     }
+#     else{
+#       names <- sapply(modelSymbolObjects, function(x)return(x$name))
+#       type <- sapply(modelSymbolObjects, function(x)return(x$type))
+#       size <- lapply(modelSymbolObjects, function(x)return(x$size))
+#       size[[1]] <- as.numeric(dims[[1]])
+#
+#       mvEWSamples <- modelValues(modelValuesConf(vars = names,
+#                                                  types = type,
+#                                                  sizes = size))
+#
+#       names <- c(names, "wts")
+#       type <- c(type, "double")
+#       size$wts <- 1
+#       mvWSamples  <- modelValues(modelValuesConf(vars = names,
+#                                                  types = type,
+#                                                  sizes = size))
+#     }
+#
+#     names <- names[1]
+#     auxStepFunctions <- nimbleFunctionList(auxStepVirtual)
+#     for(iNode in seq_along(nodes))
+#       auxStepFunctions[[iNode]] <- auxFStep(model, mvEWSamples, mvWSamples,
+#                                             nodes, iNode, names, saveAll,
+#                                             smoothing, lookahead,
+#                                             resamplingMethod, silent)
+#
+#     essVals <- rep(0, length(nodes))
+#     lastLogLik <- -Inf
+#   },
+#   run = function(m = integer(default = 10000)) {
+#     returnType(double())
+#     declare(logL, double())
+#     if(initModel == TRUE) my_initializeModel$run()
+#     resize(mvEWSamples, m)
+#     resize(mvWSamples, m)
+#     logL <- 0
+#     for(iNode in seq_along(auxStepFunctions)) {
+#       logL <- logL + auxStepFunctions[[iNode]]$run(m)
+#       essVals[iNode] <<- auxStepFunctions[[iNode]]$returnESS()
+#
+#       ## When all particles have 0 weight, likelihood becomes NAN
+#       ## this happens if top-level params have bad values - possible
+#       ## during pmcmc for example.
+#       if(is.nan(logL)) {lastLogLik <<- -Inf; return(-Inf)}
+#       if(logL == -Inf) {lastLogLik <<- logL; return(logL)}
+#       if(logL == Inf) {lastLogLik <<- -Inf; return(-Inf)}
+#     }
+#     lastLogLik <<- logL
+#     return(logL)
+#   },
+#   methods = list(
+#     getLastLogLik = function() {
+#       return(lastLogLik)
+#       returnType(double())
+#     },
+#     setLastLogLik = function(lll = double()) {
+#       lastLogLik <<- lll
+#     },
+#     returnESS = function(){
+#       returnType(double(1))
+#       return(essVals)
+#     }
+#   )
+# )
