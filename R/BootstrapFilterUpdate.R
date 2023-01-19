@@ -255,8 +255,7 @@ auxFStepUpdate <- nimbleFunction(
 
 buildAuxiliaryFilterUpdate <- nimbleFunction(
   name = 'buildAuxiliaryFilterUpdate',
-  setup = function(model, nodes, mvWSamplesWTSaved,
-                   mvWSamplesXSaved, mvEWSamplesXSaved, control = list()) {
+  setup = function(model, nodes, control = list()) {
 
     ## Control list extraction.
     saveAll <- control[['saveAll']]
@@ -266,6 +265,9 @@ buildAuxiliaryFilterUpdate <- nimbleFunction(
     lookahead <- control[['lookahead']]
     iNodePrev <- control[['iNodePrev']]
     initModel <- control[['initModel']]
+    mvWSamplesWTSaved <- control[['mvWSamplesWTSaved']]
+    mvWSamplesXSaved <- control[['mvWSamplesXSaved']]
+    mvEWSamplesXSaved <- control[['mvEWSamplesXSaved']]
     M <- control[['M']]
     resamplingMethod <- control[['resamplingMethod']]
     if(is.null(silent)) silent <- TRUE

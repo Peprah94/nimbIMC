@@ -3,6 +3,8 @@ title: "Importance Sampling for Particle filters"
 author: "Kwaku Peprah Adjei"
 format: pdf
 editor: visual
+editor_options: 
+  chunk_output_type: console
 ---
 
 ## Introduction
@@ -27,6 +29,7 @@ suppressMessages(library(myphdthesis)) #install_github("Peprah94/myphdthesis") t
 library(kableExtra)
 library(ggplot2)
 library(ggmcmc)
+library(nimbleSMC)
 #library(nimbleSMC)
 set.seed(1994)
 ```
@@ -342,9 +345,9 @@ compiledList <- compileNimble(stateSpaceModel,
                               resetFunctions = TRUE)
 
 mcmc.out <- runMCMC(compiledList$stateSpaceMCMC,
-                    niter = 10000,
+                    niter = 10,
                     nchains =3,
-                    nburnin = 500,
+                    nburnin = 5,
                     #inits = initsList,
                     #thin = 5,
                     setSeed = TRUE,
@@ -353,6 +356,7 @@ mcmc.out <- runMCMC(compiledList$stateSpaceMCMC,
                     summary = TRUE,
                     WAIC = FALSE)
 
+save(mcmc.out, file ="stateSpaceBaseline.RData")
 #compile the PF model
 #compiledList <- compileNimble(stateSpaceModel, AuxFilter)
 
@@ -438,7 +442,7 @@ plotDataReduced <- data.frame(t = seq(1,t, 1),
 
 c\. We fit the model with new streams of data:
 
-```{r, warning=FALSE, echo=FALSE}
+```{r, warning=FALSE, echo=FALSE, message = FALSE}
 
 # Replicate the data
 updatedModel <-stateSpaceModel$newModel(replicate = TRUE)
@@ -480,9 +484,9 @@ compiledList <- compileNimble(updatedModel,
                               resetFunctions = TRUE)
 
 mcmc.out <- runMCMC(compiledList$updatedStateSpaceMCMC,
-                    niter = 10000,
+                    niter = 10,
                     nchains =3,
-                    nburnin = 500,
+                    nburnin = 5,
                     #inits = initsList,
                     #thin = 5,
                     setSeed = TRUE,
@@ -490,6 +494,7 @@ mcmc.out <- runMCMC(compiledList$updatedStateSpaceMCMC,
                     samplesAsCodaMCMC = TRUE,
                     summary = TRUE,
                     WAIC = FALSE)
+save(mcmc.out, file ="stateSpaceUpdated.RData")
 
 ```
 
@@ -544,6 +549,245 @@ ggplot()+
   ylab("Latent samples from PFs")+
   theme_classic()
 ```
+
+## Sparta Example
+
+We simulate some data
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+simSpartaData <- function(nsites, nvisits, nyears, intercept.p, init.a){
+  set.seed(24)
+  yearSim <- seq(1, nyears,1)
+  Site <- seq(1, nsites,1)
+
+  #p <- plogis(intercept.p)
+
+  a <- numeric(nyears)
+  a[1] <- init.a
+  for(year.tag in 2:nyears){
+    a[year.tag] <- rnorm(1, a[year.tag -1], sd = 1)
+  }
+
+  z <- matrix(NA, nrow = nsites, ncol = nyears)
+
+  for(site.tag in 1:nsites){
+    for(year.tag in 1:nyears){
+      z[site.tag, year.tag] <- rbinom(1, 1, plogis(a[year.tag]))
+    }
+  }
+
+  p <- psi.fs <- numeric(nvisits)
+  y <- array(NA, dim = c(nsites, nvisits, nyears))
+
+  for(visit.tag in 1:nvisits) {
+    p[visit.tag] <-  plogis(intercept.p)
+  }
+    #Py[visit.tag] <- z[Site[visit.tag], yearSim[visit.tag]]*p[visit.tag]
+    for(site.tag in 1:nsites){
+      for(visit.tag in 1:nvisits) {
+      for(year.tag in 1:nyears){
+    y[site.tag, visit.tag, year.tag] <- rbinom(1,1, z[Site[site.tag], yearSim[year.tag]]*p[visit.tag])
+      }
+    }
+  }
+
+  #prop of occupied sutes
+  for (t in 1:nyears) {
+    psi.fs[t] <- sum(z[1:nsites, t])/nsites
+  }
+
+  return(list(z = z, y = y, psi.fs, a = a, Site = Site, Year = yearSim))
+
+}
+
+
+simData <- simSpartaData(nsites = 100, nvisits = 3, nyears = 20, intercept.p = 2, init.a = -1)
+
+
+occStateModel <- nimbleCode({
+  # JAGS code for SPARTA model plus random walk prior
+
+  # State model
+  for (i in 1:nsite){
+    for (t in 1:nyear){
+      z[i,t] ~ dbern(muZ[i,t])
+      logit(muZ[i,t])<- a[t]
+    }
+  }
+
+  for(j in 1:nvisit){
+    logit(p[j]) <-  intercept.p
+  }
+  ### Observation Model
+  for(i in 1:nsite){
+    for(j in 1:nvisit){
+    for(k in 1:nyear){
+    y[i,j, k] ~ dbern(z[Site[i],Year[k]]*p[j])
+
+  }
+  }
+  }
+
+  # State model priors
+
+  #random walk prior
+  a[1] ~ dnorm(0, tau = 0.001)
+
+  for(t in 2:nyear){
+    a[t] ~ dnorm(a[t-1], tau.a)
+  }
+  tau.a <- 1/(sd.a * sd.a)
+  sd.prior ~ dt(0, 1, 1)# I(0,1000)
+  sd.a ~ dconstraint(sd.prior >0 )
+
+
+  # Observation model priors
+  mean.p ~ dunif(0,1)
+  intercept.p <- logit(mean.p)
+
+  # Derived parameters - prop of occuppied sites
+  for (t in 1:nyear) {
+    psi.fs[t] <- sum(z[1:nsite, t])/nsite
+  }
+
+}
+)
+```
+
+We run the baseline model to be compared with the updating of the model
+```{r, warning=FALSE, message=TRUE}
+data <- list(
+  y = simData$y
+)
+constants <- list(
+  nyear = 20,
+  nvisit = 3,
+  nsite = 100,
+  Site = simData$Site,
+  Year = simData$Year
+)
+inits <- list(
+  mean.p = 0,
+  sd.prior = .5,
+  a = simData$a,
+  z = simData$z
+)
+
+
+occStateSpaceModel <- nimbleModel(occStateModel,
+                               data = data,
+                               constants = constants,
+                               inits = inits,
+                               check = FALSE)
+
+## build bootstrap filter and compile model and filter
+bootstrapFilter <- buildAuxiliaryFilter(occStateSpaceModel, nodes = 'a',
+                                        control = list(saveAll = TRUE, lookahead = 'mean'))
+
+
+## create MCMC specification for the state space model
+occStateSpaceMCMCconf <- configureMCMC(occStateSpaceModel, nodes = NULL)
+
+occStateSpaceMCMCconf$addSampler(target = c('sd.prior', 'mean.p'),
+                              type = 'RW_PF_block',
+                              control = list(latents = 'a',
+                                             pfControl = list(saveAll = TRUE),
+                                             pfNparticles = 10000,
+                                             pf = bootstrapFilter ))
+occStateSpaceMCMCconf$addMonitors('psi.fs')
+## build and compile pMCMC sampler
+occStateSpaceMCMC <- buildMCMC(occStateSpaceMCMCconf)
+compiledList <- compileNimble(occStateSpaceModel,
+                              occStateSpaceMCMC,
+                              resetFunctions = TRUE)
+
+mcmc.out <- runMCMC(compiledList$occStateSpaceMCMC,
+                    niter = 10,
+                    nchains =3,
+                    nburnin = 5,
+                    #inits = initsList,
+                    #thin = 5,
+                    setSeed = TRUE,
+                    samples=TRUE,
+                    samplesAsCodaMCMC = TRUE,
+                    summary = TRUE,
+                    WAIC = FALSE)
+save(mcmc.out, file = "spartaBaseline.RData")
+
+mcmc.out$summary$all.chains
+```
+
+We fit the reduced model and then update with new data for the last 10 years.
+
+```{r, warning=FALSE, message=FALSE}
+#reduced Model
+reducedModel <- occStateSpaceModel$newModel(replicate = TRUE)
+#set the years without data as NA
+reducedModel$y[,,15:20] <- NA
+reducedModel$x[41:50] <- NA
+
+compileNimble(reducedModel)
+
+reducedAuxModel <- buildAuxiliaryFilter(reducedModel, 'a',
+                                        control = list(saveAll = TRUE, lookahead = "mean", smoothing = FALSE))
+
+cReducedModel <- compileNimble(reducedAuxModel, project = reducedModel)
+
+logLik <- cReducedModel$run(m = 10000)
+ESS <- cReducedModel$returnESS()
+
+auxWts <- as.matrix(cReducedModel$mvWSamples, "wts")
+reducedWeights <- as.matrix(cReducedModel$mvWSamples, "wts")
+reducedUnweightedSamples <- as.matrix(cReducedModel$mvWSamples, "a")
+reducedWeightedSamples <- as.matrix(cReducedModel$mvEWSamples, "a")
+
+
+#Updates
+
+updatedModel <-occStateSpaceModel$newModel(replicate = TRUE)
+
+
+updatedAuxModel <- buildAuxiliaryFilterUpdate(updatedModel, 'a',reducedWeights,
+                                              reducedUnweightedSamples,reducedWeightedSamples,
+                                              control = list(saveAll = TRUE, lookahead = "mean", smoothing = FALSE,  M = 6, iNodePrev = 14))
+
+#cUpdatedModel <- compileNimble(updatedModel, updatedAuxModel)
+
+
+
+
+
+updatedSpaceMCMCconf <- configureMCMC(updatedModel, nodes = NULL)
+
+
+updatedSpaceMCMCconf$addSampler(target = c('sd.prior', 'mean.p'),
+                                type = 'RW_PF_block',
+                                control = list(latents = 'a',
+                                               pfControl = list(saveAll = TRUE),
+                                               pfNparticles = 10000,
+                                               pf = updatedAuxModel ))
+updatedSpaceMCMCconf$addMonitors("psi.fs")
+## build and compile pMCMC sampler
+updatedStateSpaceMCMC <- buildMCMC(updatedSpaceMCMCconf)
+compiledList <- compileNimble(updatedModel,
+                              updatedStateSpaceMCMC,
+                              resetFunctions = TRUE)
+
+mcmc.out <- runMCMC(compiledList$updatedStateSpaceMCMC,
+                    niter = 10,
+                    nchains =3,
+                    nburnin = 5,
+                    #inits = initsList,
+                    #thin = 5,
+                    setSeed = TRUE,
+                    samples=TRUE,
+                    samplesAsCodaMCMC = TRUE,
+                    summary = TRUE,
+                    WAIC = FALSE)
+
+save(mcmc.out, file="spartaUpdated.RData")
+```
+
+
 
 ## To do for next week
 
