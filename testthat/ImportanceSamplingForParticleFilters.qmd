@@ -24,8 +24,8 @@ In all cases, I simulate a data from this model with $N=50$ years and fit the `a
 ## Packages needed for this document
 
 ```{r, message = FALSE}
-suppressMessages(library(nimble))
-suppressMessages(library(myphdthesis)) #install_github("Peprah94/myphdthesis") to install this package
+library(nimble)
+library(myphdthesis) #install_github("Peprah94/myphdthesis") to install this package
 library(kableExtra)
 library(ggplot2)
 library(ggmcmc)

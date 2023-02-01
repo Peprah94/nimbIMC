@@ -1,0 +1,233 @@
+---
+title: "Quality Control of Citizen Science Data"
+author: "Kwaku Peprah Adjei, Bob O'Hara (NTNU), Anders Finstad (NTNU), Nick Isaac (UKCEH)"
+date: "23-01-2023"
+institute: "Norwegian University of Science and Technology"
+format: 
+  revealjs:
+    transition: zoom
+    transition-speed: fast
+    slide-number: c/t #< collapsed/total
+    theme: solarized
+    fig-cap-location: bottom
+    tbl-cap-location: bottom
+    code-fold: true
+editor: visual
+#transition: slower
+---
+
+## Introduction
+
+::: fragment
+-   Increase in biodiversity data
+:::
+
+::: fragment
+-   Biodiversity data subject to biases/noise
+:::
+
+::: fragment
+-   Develop statistical framework to model species distribution whilst accounting for biases
+:::
+
+# Study 1: A structural model for the process of collecting biodiversity data
+
+## Aim of study
+
+-   Concept of how biodiversity data is collected
+
+-   General statistical framework to model biases
+
+::: columns
+::: {.column width="50%"}
+::: fragment
+sources of biases :
+
+-   uneven sampling effort
+
+-   detection probability
+
+-   Misclassification / Misidentification
+:::
+:::
+
+::: {.column width="50%"}
+::: fragment
+![Probabilistic structure of biodiversity data](flowchart_new.png)
+:::
+:::
+:::
+
+## Methodology
+
+::: columns
+::: {.column width="50%"}
+::: fragment
+![Equations for the structural process of collecting biodiversity data](studyOneEquation.jpg)
+:::
+:::
+
+::: {.column width="50%"}
+::: fragment
+![From True intensity to observed intensity](generatingProcess.png)
+:::
+:::
+:::
+
+# Study 2: Modelling heterogeneity in classification process in multi-species distribution models improves predictive performance
+
+## Aims of study
+
+-   Model heterogeneity in classification process
+
+-   Access impact on predictive performance:
+
+    -   The number of verified samples
+    -   The number of misclassified samples
+    -   
+
+-   Check for overparameterization using variable selection methods
+
+## Methodology
+
+![Summary of model equations](misclassMethods.png)
+
+## Results
+
+::: columns
+::: {.column width="50%"}
+::: fragment
+![Predictive performance for all models](mainFigPaperSimulations.png)
+:::
+:::
+
+::: {.column width="50%"}
+::: fragment
+![Correct classification probabilities](classifyProbsDataResults.png)
+:::
+:::
+:::
+
+# Study 3: Integrated distribution model for data from different taxonomic level
+
+## Aims of study
+
+::: fragment
+-   Data resolved at different taxonomic levels
+:::
+
+::: fragment
+-   Missing species identity
+:::
+
+::: fragment
+-   Make inference about alpha diversity
+:::
+
+## Methodology
+
+::: columns
+::: {.column width="50%"}
+::: fragment
+![Equations for the structural process of collecting biodiversity data](IDM_DAG.png)
+:::
+:::
+
+::: {.column width="50%"}
+::: fragment
+![Shannon Diversity Index for 74 PoMS sites](shannonMap.png)
+:::
+:::
+:::
+
+# Study 4: INLA(bru) within NIMBLE
+
+## Aims of study
+
+::: columns
+::: {.column width="30%"}
+::: fragment
+![Virgilio et.al](inla-mcmc.png)
+:::
+:::
+
+::: {.column width="70%"}
+::: fragment
+-   Use NIMBLE for the MCMC
+
+::: fragment
+-   Easier for ecologists to use INLA for SDMs
+:::
+
+::: fragment
+-   Have been used for Poisson regression, Bayesian lasso regression, missing covariates.
+:::
+
+::: fragment
+-   Computational time for spatio-temporal models??
+:::
+
+::: fragment
+-   Currently getting an example with occupancy model
+:::
+:::
+:::
+:::
+
+## Example - Bivariate Regression Regression
+
+::: panel-tabset
+## Problem Set-up
+
+Assume we have:
+
+$$
+y_i = \alpha + \beta_1*x_{1i} + \beta_2*x_{2i} + \epsilon_i \quad \text{where} \quad \epsilon_i \sim N(0, \sigma^2).
+$$
+
+*Notations:*
+
+-   `i` is the site index;
+
+-   `y_i` is observation at site $i$;
+
+-   `x` is a matrix of covariates
+
+## Code
+
+```{r, echo = TRUE}
+library(dplyr)
+library(myphdthesis)
+load("nimBayesianRegression.RData")
+nimble <- nimBivariate$summary[,1]
+load("inlaNimBayesianRegression.RData")
+inlaWithinNimble <- inlaNimBivariate$output[,1]
+load("inlaBayesianRegression.RData")
+inla <- c(inlaBivariate$summary.fixed[,1],inlaBivariate$summary.hyperpar[,1])
+truth <- c(2, 3, -3, 1)
+#add the one from INLA nimble
+allRes <- cbind( truth, nimble, inlaWithinNimble, inla)
+```
+
+## Results
+
+```{r}
+library(kableExtra)
+knitr::kable(allRes, digits = 4, caption = "Results from INLA, NIMBLE and the INLA within NIMBLE approach",   col.names = c('truth', 'nimble', 'inlaWiNimble', 'inla'))%>%
+  kable_styling(font_size = 30)
+```
+:::
+
+# Study 5: A structural model for the process of collecting biodiversity data: Inference and Prediction
+
+## Aim of study
+
+![Covariates and ToVE sites](inferenceCovariatesPlot.png)
+
+## Potential outcomes
+
+![Mean intensity of model fit without accounting for sources of bias](naiveModelIntensity.png)
+
+## Potential outcomes
+
+![Mean intensity of model fit whilst accounting for imperfect detection](detectionProcessIntensity.png)

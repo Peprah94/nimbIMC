@@ -22,15 +22,7 @@ sampler_RW_PFUpdate(
   control
 )
 
-sampler_RW_PF_blockUpdate(
-  model,
-  mvSaved,
-  target,
-  mvWSamplesWTSaved,
-  mvWSamplesXSaved,
-  mvEWSamplesXSaved,
-  control
-)
+sampler_RW_PF_blockUpdate(model, mvSaved, target, control)
 }
 \arguments{
 \item{model}{(uncompiled) model on which the MCMC is to be run}

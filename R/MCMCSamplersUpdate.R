@@ -231,8 +231,7 @@ sampler_RW_PFUpdate <- nimbleFunction(
 sampler_RW_PF_blockUpdate <- nimbleFunction(
   name = 'sampler_RW_PF_blockUpdate',
   contains = sampler_BASE,
-  setup = function(model, mvSaved, target, mvWSamplesWTSaved,
-                   mvWSamplesXSaved, mvEWSamplesXSaved,control) {
+  setup = function(model, mvSaved, target, control) {
     ## control list extraction
     adaptive            <- extractControlElement(control, 'adaptive',             TRUE)
     adaptScaleOnly      <- extractControlElement(control, 'adaptScaleOnly',       FALSE)
@@ -246,6 +245,10 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
     filterControl       <- extractControlElement(control, 'pfControl',            list())
     optimizeM           <- extractControlElement(control, 'pfOptimizeNparticles', FALSE)
     latents             <- extractControlElement(control, 'latents',              error = 'RW_PF sampler missing required control argument: latents')
+    mvWSamplesWTSaved  <- extractControlElement(control, 'weights', double())
+    mvWSamplesXSaved  <- extractControlElement(control, 'unweightedSamples', double())
+    mvEWSamplesXSaved <- extractControlElement(control, 'weightedSamples', double())
+
     if('pfLookahead' %in% names(control)) {
       warning("The `pfLookahead` control list argument is deprecated and will not be supported in future versions of `nimbleSMC`. Please specify the lookahead function via the pfControl argument instead.")
       filterControl$lookahead <- control[['pfLookahead']]
@@ -303,7 +306,7 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
       if(is.character(filterType) && filterType == 'auxiliary') {
         my_particleFilter <- buildAuxiliaryFilter(model, latents, control = filterControl)
       }
-      if(is.character(filterType) && filterType == 'auxiliaryUpdate' ) {
+      else if(is.character(filterType) && filterType == 'auxiliaryUpdate' ) {
         my_particleFilter <- buildAuxiliaryFilterUpdate(model, latents, mvWSamplesWTSaved,
                                                         mvWSamplesXSaved, mvEWSamplesXSaved, control = filterControl)
       }
@@ -417,4 +420,5 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
     }
   )
 )
+
 

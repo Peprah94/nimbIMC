@@ -1,0 +1,42 @@
+---
+title: "Quality Control of Citizen Science Data"
+author: "Kwaku Peprah Adjei"
+thanks: "Bob O'Hara (NTNU), Anders Finstad (NTNU), Nick Isaac (UKCEH)"
+institute: "Norwegian University of Science and Technology"
+format: revealjs
+editor: visual
+#transition: slower
+---
+
+## Introduction
+
+* Increase in biodiversity data
+
+* Biodiversity data subject to biases/noise
+
+* Develop statistical framework to model species distribution whilst accounting for biases
+
+
+## Study 1: A structural model for the process of collecting biodiversity data
+
+
+
+## Study 1
+:::: {.columns}
+
+::: {.column width="50%"}
+* Concept of how biodiversity data is collected
+
+* General statistical framework to model biases
+
+* sources of biases : 
+  + uneven sampling effort
+  + detection probability
+  + Misclassification / Misidentification
+:::
+
+::: {.column width="50%"}
+![Caption](FiguresForPresentatation/flowchart_new.png)
+:::
+
+::::
