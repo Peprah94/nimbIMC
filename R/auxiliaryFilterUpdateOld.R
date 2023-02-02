@@ -8,13 +8,13 @@ setSavedWts <-  function(mv, currIndx, indx, mvWSamplesXSaved){
 
 
 
-auxFStepUpdate <- nimbleFunction(
+auxFStepUpdateOld <- nimbleFunction(
   name = 'auxFStepUpdate',
   contains = auxStepVirtual,
   setup = function(model, mvEWSamples, mvWSamples, nodes, iNode, names,
                    saveAll, smoothing, lookahead, resamplingMethod,
                    silent = TRUE, iNodePrev, mvWSamplesWTSaved,
-                   mvWSamplesXSaved, mvEWSamplesXSaved, logLikeVals
+                   mvWSamplesXSaved, mvEWSamplesXSaved
                    ) {
     notFirst <- iNode != 1
     last <- iNode == length(nodes)
@@ -123,22 +123,6 @@ auxFStepUpdate <- nimbleFunction(
     # }
     #}
     ##########
-
-    if(t < iNodePrev){
-      for(i in 1:m){
-        mvWSamples['wts', i][currInd] <<- mvWSamplesWTSaved[i, currInd]
-        mvWSamples['x', i][currInd] <<- mvWSamplesXSaved[i, currInd]
-        mvEWSamples['x', i][currInd] <<- mvEWSamplesXSaved[i, currInd]
-        mvWSamples['auxlog',i][currInd] <<- logLikeVals[i, currInd]
-        #copy(mvEWSamplesXSaved, mvEWSamples, nodes = thisNode,
-          #   nodesTo = thisXName, row = i, rowTo=i)
-        #copy(mvWSamplesXSaved, mvWSamples, nodes = thisNode,
-           #  nodesTo = thisXName, row = i, rowTo=i)
-      }
-outLL <- logLikeVals[1, currInd]
-
-    }else{
-
     if(notFirst){
       for(i in 1:m) {
         if(smoothing == 1){
@@ -253,13 +237,9 @@ outLL <- logLikeVals[1, currInd]
       maxWt <- max(wts)
       maxAuxWt <- max(auxWts)
       outLL <- log(sum(exp(wts - maxWt))) + maxWt - log(m) + log(sum(exp(auxWts - maxAuxWt))) + maxAuxWt
-      } else {
+    } else {
       maxWt <- max(wts)
       outLL <- log(sum(exp(wts - maxWt))) + maxWt - log(m)
-    }
-    for(i in 1:m){
-      mvWSamples['auxlog',i][currInd] <<- outLL
-    }
     }
     return(outLL)
 
@@ -273,10 +253,10 @@ outLL <- logLikeVals[1, currInd]
 )
 
 
-buildAuxiliaryFilterUpdate <- nimbleFunction(
+buildAuxiliaryFilterUpdateOld <- nimbleFunction(
   name = 'buildAuxiliaryFilterUpdate',
   setup = function(model, nodes, mvWSamplesWTSaved,
-                   mvWSamplesXSaved, mvEWSamplesXSaved,logLikeVals, control = list()) {
+                   mvWSamplesXSaved, mvEWSamplesXSaved,control = list()) {
 
     ## Control list extraction.
     saveAll <- control[['saveAll']]
@@ -339,14 +319,12 @@ buildAuxiliaryFilterUpdate <- nimbleFunction(
                                                  types = type,
                                                   sizes = size))
 
-       names <- c(names, "wts", "auxlog")
-       type <- c(type, "double", "double")
+       names <- c(names, "wts")
+       type <- c(type, "double")
        size$wts <- length(dims)
-       size$auxlog <- length(dims)
       ## Only need one weight per particle (at time T) if smoothing == TRUE.
        if(smoothing){
          size$wts <- 1
-         size$auxlog <- 1
        }
        mvWSamples  <- modelValues(modelValuesConf(vars = names,
                                                   types = type,
@@ -363,8 +341,8 @@ buildAuxiliaryFilterUpdate <- nimbleFunction(
                                                  types = type,
                                                  sizes = size))
 
-      names <- c(names, "wts", "auxlog")
-       type <- c(type, "double", "double")
+      names <- c(names, "wts")
+       type <- c(type, "double")
        size$wts <- 1
        mvWSamples  <- modelValues(modelValuesConf(vars = names,
                                                  types = type,
@@ -427,8 +405,7 @@ buildAuxiliaryFilterUpdate <- nimbleFunction(
                                             smoothing, lookahead,
                                             resamplingMethod, silent,
                                             iNodePrev, mvWSamplesWTSaved,
-                                            mvWSamplesXSaved, mvEWSamplesXSaved,
-                                            logLikeVals)
+                                            mvWSamplesXSaved, mvEWSamplesXSaved)
 
     essVals <- rep(0, length(nodes))
     lastLogLik <- -Inf

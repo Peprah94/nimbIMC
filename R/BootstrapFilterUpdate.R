@@ -8,7 +8,7 @@ setSavedWts <-  function(mv, currIndx, indx, mvWSamplesXSaved){
 
 
 
-auxFStepUpdate <- nimbleFunction(
+bootFStepUpdate <- nimbleFunction(
   name = 'auxFStepUpdate',
   contains = auxStepVirtual,
   setup = function(model, mvEWSamples, mvWSamples, nodes, iNode, names,
@@ -253,7 +253,7 @@ auxFStepUpdate <- nimbleFunction(
 )
 
 
-buildAuxiliaryFilterUpdate <- nimbleFunction(
+buildBootstrapFilterUpdate <- nimbleFunction(
   name = 'buildAuxiliaryFilterUpdate',
   setup = function(model, nodes, mvWSamplesWTSaved,
                    mvWSamplesXSaved, mvEWSamplesXSaved,control = list()) {
