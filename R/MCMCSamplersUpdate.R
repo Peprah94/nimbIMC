@@ -64,7 +64,8 @@ sampler_RW_PFUpdate <- nimbleFunction(
   name = 'sampler_RW_PFUpdate',
   contains = sampler_BASE,
   setup = function(model, mvSaved, target, mvWSamplesWTSaved,
-                   mvWSamplesXSaved, mvEWSamplesXSaved, control) {
+                   mvWSamplesXSaved, mvEWSamplesXSaved, logLikeVals,
+                   control) {
     ## control list extraction
     adaptive       <- extractControlElement(control, 'adaptive',             TRUE)
     adaptInterval  <- extractControlElement(control, 'adaptInterval',        200)
@@ -248,6 +249,7 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
     mvWSamplesWTSaved  <- extractControlElement(control, 'weights', double())
     mvWSamplesXSaved  <- extractControlElement(control, 'unweightedSamples', double())
     mvEWSamplesXSaved <- extractControlElement(control, 'weightedSamples', double())
+    logLike <- extractControlElement(control, 'logLikeVals', double())
 
     if('pfLookahead' %in% names(control)) {
       warning("The `pfLookahead` control list argument is deprecated and will not be supported in future versions of `nimbleSMC`. Please specify the lookahead function via the pfControl argument instead.")
@@ -304,11 +306,12 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
       }
       filterControl$initModel <- FALSE
       if(is.character(filterType) && filterType == 'auxiliary') {
-        my_particleFilter <- buildAuxiliaryFilter(model, latents, control = filterControl)
+        my_particleFilter <- buildAuxiliaryFilterNew(model, latents, control = filterControl)
       }
       else if(is.character(filterType) && filterType == 'auxiliaryUpdate' ) {
         my_particleFilter <- buildAuxiliaryFilterUpdate(model, latents, mvWSamplesWTSaved,
-                                                        mvWSamplesXSaved, mvEWSamplesXSaved, control = filterControl)
+                                                        mvWSamplesXSaved, mvEWSamplesXSaved, logLike,
+                                                        control = filterControl)
       }
       else if(is.character(filterType) && filterType == 'bootstrap') {
         my_particleFilter <- buildBootstrapFilter(model, latents, control = filterControl)
