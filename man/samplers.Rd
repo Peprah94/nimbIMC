@@ -19,6 +19,7 @@ sampler_RW_PFUpdate(
   mvWSamplesWTSaved,
   mvWSamplesXSaved,
   mvEWSamplesXSaved,
+  logLikeVals,
   control
 )
 
