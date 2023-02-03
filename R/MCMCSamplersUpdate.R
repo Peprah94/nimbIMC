@@ -314,9 +314,13 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
                                                         mvEWSamplesXSaved,
                                                         logLike,
                                                         control = filterControl)
+
       }
       else if(is.character(filterType) && filterType == 'bootstrap') {
         my_particleFilter <- buildBootstrapFilter(model, latents, control = filterControl)
+
+        my_particleFilter1 <- buildBootstrapFilter(model, latents,
+                                                   control = filterControl)
       }
       else if(is.nfGenerator(filterType)){
         my_particleFilter <- filterType(model, latents, control = filterControl)

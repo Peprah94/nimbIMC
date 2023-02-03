@@ -45,7 +45,7 @@ auxSimFunc = nimbleFunction(
 )
 
 auxFStepNew <- nimbleFunction(
-    name = 'auxFStep',
+    name = 'auxFStepNew',
   contains = auxStepVirtual,
   setup = function(model, mvEWSamples, mvWSamples, nodes, iNode, names,
                    saveAll, smoothing, lookahead, resamplingMethod,
@@ -140,7 +140,7 @@ auxFStepNew <- nimbleFunction(
               auxFuncList[[j]]$lookahead()
         } else auxFuncList[[1]]$lookahead()
 
-        ## Get p(y_t+1 | x_t+1).
+        ## Get p(y_t+1 | x_t).
         auxll[i] <- model$calculate(calc_thisNode_deps)
         if(is.nan(auxll[i])){
           return(-Inf)
@@ -311,7 +311,7 @@ auxFStepNew <- nimbleFunction(
 #' ## ESS <- Cmy_AuxF$returnESS()
 #' ## aux_X <- as.matrix(Cmy_AuxF$mvEWSamples, 'x')
 buildAuxiliaryFilterNew <- nimbleFunction(
-    name = 'buildAuxiliaryFilter',
+    name = 'buildAuxiliaryFilterNew',
     setup = function(model, nodes, control = list()) {
 
     ## Control list extraction.
