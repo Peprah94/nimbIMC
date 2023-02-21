@@ -2,7 +2,7 @@
 ##  We have a build function (buildBootstrapFilter),
 ##  and step function.
 
-bootStepVirtualUpdate <- nimbleFunctionVirtual(
+bootStepVirtual <- nimbleFunctionVirtual(
   run = function(m = integer(), threshNum=double(), prevSamp = logical()) {
     returnType(double(1))
   },
@@ -15,9 +15,9 @@ bootStepVirtualUpdate <- nimbleFunctionVirtual(
 
 # Bootstrap filter as specified in Doucet & Johnasen '08,
 # uses weights from previous time point to calculate likelihood estimate.
-bootFStepUpdate <- nimbleFunction(
-  name = 'bootFStepUpdate',
-  contains = bootStepVirtualUpdate,
+bootFStepNew <- nimbleFunction(
+  name = 'bootFStepNew',
+  contains = bootStepVirtual,
   setup = function(model,
                    mvEWSamples,
                    mvWSamples,
@@ -27,11 +27,7 @@ bootFStepUpdate <- nimbleFunction(
                    saveAll,
                    smoothing,
                    resamplingMethod,
-                   silent = FALSE,
-                   iNodePrev, mvWSamplesWTSaved,
-                   mvWSamplesXSaved,
-                   mvEWSamplesXSaved,
-                   logLikeVals) {
+                   silent = FALSE) {
     notFirst <- iNode != 1
     modelSteps <- particleFilter_splitModelSteps(model, nodes, iNode, notFirst)
     prevDeterm <- modelSteps$prevDeterm
@@ -65,7 +61,6 @@ bootFStepUpdate <- nimbleFunction(
     }
     isLast <- (iNode == length(nodes))
     ess <- 0
-
     resamplerFunctionList <- nimbleFunctionList(resamplerVirtual)
     if(resamplingMethod == 'default'){
       resamplerFunctionList[[1]] <- residualResampleFunction()
@@ -89,7 +84,6 @@ bootFStepUpdate <- nimbleFunction(
     llEst <- numeric(m, init=FALSE)
     out <- numeric(2, init=FALSE)
 
-    if(t > iNodePrev -1 ){
     for(i in 1:m) {
       if(notFirst) {
         if(smoothing == 1){
@@ -168,124 +162,10 @@ bootFStepUpdate <- nimbleFunction(
       }
     }
     for(i in 1:m){
-      mvWSamples['bootLL',i][currInd] <<- out[1]
+      mvWSamples['bootLL',i][currInd] <<- stepllEst
     }
     return(out)
-    }else{
-      for(i in 1:m) {
-        if(notFirst) {
-          if(smoothing == 1){
-            copy(mvEWSamples, mvWSamples, nodes = allPrevNodes,
-                 nodesTo = allPrevNodes, row = i, rowTo=i)
-          }
-          copy(mvEWSamples, model, nodes = prevXName, nodesTo = prevNode, row = i)
-          model$calculate(prevDeterm)
-        }
-        model$simulate(calc_thisNode_self)
-        ## The logProbs of calc_thisNode_self are, correctly, not calculated.
-        copy(model, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
-        wts[i]  <- model$calculate(calc_thisNode_deps)
-        if(is.nan(wts[i])){
-          out[1] <- -Inf
-          out[2] <- 0
-          return(out)
-        }
-        if(prevSamp == 0){ ## defaults to 1 for first step and then comes from the previous step
-          wts[i] <- mvWSamplesWTSaved[i, currInd]
-          llEst[i] <- wts[i]
-        } else {
-          llEst[i] <- mvWSamplesWTSaved[i, currInd]
-        }
-      }
-
-      maxllEst <- max(llEst)
-      stepllEst <- maxllEst + log(sum(exp(llEst - maxllEst)))
-      if(is.nan(stepllEst)){
-        out[1] <- -Inf
-        out[2] <- 0
-        return(out)
-      }
-      if(stepllEst == Inf | stepllEst == -Inf){
-        out[1] <- -Inf
-        out[2] <- 0
-        return(out)
-      }
-
-      out[1] <- logLikeVals[1, currInd]
-
-      ## Normalize weights and calculate effective sample size, using log-sum-exp trick to avoid underflow.
-      maxWt <- max(wts)
-      wts <- exp(wts - maxWt)/sum(exp(wts - maxWt))
-      ess <<- 1/sum(wts^2)
-
-      ## Determine whether to resample by weights or not.
-      if(ess < threshNum){
-        if(defaultResamplerFlag){
-          rankSample(wts, m, ids, silent)
-        } else {
-          ids <- resamplerFunctionList[[1]]$run(wts)
-        }
-        ## out[2] is an indicator of whether resampling takes place.
-        ## Resampling affects how ll estimate is calculated at next time point.
-        out[2] <- 1
-        for(i in 1:m){
-          copy(mvWSamples, mvEWSamples, nodes = thisXName, nodesTo = thisXName,
-               row = ids[i], rowTo = i)
-          if(smoothing == 1){
-            copy(mvWSamples, mvEWSamples, nodes = allPrevNodes,
-                 nodesTo = allPrevNodes, row = ids[i], rowTo=i)
-          }
-          mvWSamples['wts',i][currInd] <<- mvWSamplesWTSaved[i, currInd]
-        }
-      } else {
-        out[2] <- 0
-        for(i in 1:m){
-          copy(mvWSamples, mvEWSamples, nodes = thisXName, nodesTo = thisXName,
-               row = i, rowTo = i)
-          if(smoothing == 1){
-            copy(mvWSamples, mvEWSamples, nodes = allPrevNodes,
-                 nodesTo = allPrevNodes, row = i, rowTo=i)
-          }
-          mvWSamples['wts',i][currInd] <<- mvWSamplesWTSaved[i, currInd]
-        }
-      }
-      for(i in 1:m){
-        mvWSamples['bootLL',i][currInd] <<- out[1]
-      }
-      return(out)
-
-      #  for(i in 1: m){
-      #    copy(mvEWSamples, model, nodes = prevXName, nodesTo = prevNode, row = i)
-      #   model$calculate(prevDeterm)
-      #    mvWSamples['x', i][currInd] <<- mvWSamplesXSaved[i, currInd]
-      #    #copy(mvWSamples, model, nodes = thisNode, nodesTo = thisXName, row = i)
-      #    #wts[i]  <- mvWSamplesWTSaved[i, currInd]
-      #    mvWSamples['wts', i][currInd] <<- mvWSamplesWTSaved[i, currInd]
-      # #
-      #  mvEWSamples['x', i][currInd] <<- mvEWSamplesXSaved[i, currInd]
-      #     #wts[i] <-  mvWSamplesWTSaved[i, currInd]
-      #  }
-      # #
-      # for(i in 1:m){
-      #    out[1] <- mvWSamples[1,currInd]
-      #    out[2] <- 0
-      # }
-      # return(out)
-      ## The logProbs of calc_thisNode_self are, correctly, not calculated.
-
-        #
-        #   }
-        #   if(lookahead == "mean"){
-        #     for(j in 1:numLatentNodes)
-        #       auxFuncList[[j]]$lookahead()
-        #   } else auxFuncList[[1]]$lookahead()
-        #   copy(model, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row=i)
-        #   copy(mvEWSamples, mvWSamples, thisXName, thisXName, row = i,  rowTo = i)
-        # }
-        #}
-    #}
-  }
-    },
+  },
   methods = list(
     returnESS = function(){
       returnType(double(0))
@@ -375,10 +255,9 @@ bootFStepUpdate <- nimbleFunction(
 #' ## logLik <- Cmy_BootF$run(m = 1000)
 #' ## ESS <- Cmy_BootF$returnESS()
 #' ## boot_X <- as.matrix(Cmy_BootF$mvEWSamples, 'x')
-buildBootstrapFilterUpdate <- nimbleFunction(
-  name = 'buildBootstrapFilterUpdate',
-  setup = function(model, nodes, mvWSamplesWTSaved,
-                   mvWSamplesXSaved, mvEWSamplesXSaved, logLikeVals, control = list()) {
+buildBootstrapFilterNew <- nimbleFunction(
+  name = 'buildBootstrapFilterNew',
+  setup = function(model, nodes, control = list()) {
 
     #control list extraction
     thresh <- control[['thresh']]
@@ -387,9 +266,6 @@ buildBootstrapFilterUpdate <- nimbleFunction(
     silent <- control[['silent']]
     timeIndex <- control[['timeIndex']]
     initModel <- control[['initModel']]
-    iNodePrev <- control[['iNodePrev']]
-    #initModel <- control[['initModel']]
-    M <- control[['M']]
     resamplingMethod <- control[['resamplingMethod']]
     if(is.null(thresh)) thresh <- .8
     if(is.null(silent)) silent <- TRUE
@@ -429,6 +305,7 @@ buildBootstrapFilterUpdate <- nimbleFunction(
       names <- c(names, "wts", "bootLL")
       type <- c(type, "double", "double")
       size$wts <- length(dims)
+      size$bootLL <- length(dims)
       ##  Only need one weight per particle (at time T) if smoothing == TRUE.
       if(smoothing){
         size$wts <- 1
@@ -458,15 +335,12 @@ buildBootstrapFilterUpdate <- nimbleFunction(
       names <- names[1]
     }
 
-    bootStepFunctions <- nimbleFunctionList(bootStepVirtualUpdate)
+    bootStepFunctions <- nimbleFunctionList(bootStepVirtual)
     for(iNode in seq_along(nodes)){
-      bootStepFunctions[[iNode]] <- bootFStepUpdate(model, mvEWSamples, mvWSamples,
+      bootStepFunctions[[iNode]] <- bootFStepNew(model, mvEWSamples, mvWSamples,
                                               nodes, iNode, names, saveAll,
                                               smoothing, resamplingMethod,
-                                              silent,
-                                              iNodePrev, mvWSamplesWTSaved,
-                                              mvWSamplesXSaved, mvEWSamplesXSaved,
-                                              logLikeVals)
+                                              silent)
     }
     essVals <- rep(0, length(nodes))
     lastLogLik <- -Inf

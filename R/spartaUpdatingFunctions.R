@@ -7,9 +7,9 @@
 
 spartaNimWeights <- function(model, #nimbleModel
                              MCMCconfiguration = NULL, #configuration for MCMC
-                             pfType = NULL,#Either 'auxiliary' or 'bootstrap'. Defaults to auxiliary
+                             pfType = "bootstrap",#Either 'auxiliary' or 'bootstrap'. Defaults to auxiliary
                              pfControl = list(saveAll = TRUE,
-                                              lookahead = "mean",
+                                              #lookahead = "mean",
                                               smoothing = FALSE), #list of controls for particle filter
                              nParFiltRun = NULL, #Number of PF runs
                              latent #the latent variable
@@ -47,11 +47,11 @@ spartaNimWeights <- function(model, #nimbleModel
     }
 
     if(pfType == "bootstrap"){
-      particleFilter <- nimbleSMC::buildBootstrapFilter(model,
+      particleFilter <- myphdthesis::buildBootstrapFilterNew(model,
                                                         latent,
                                                         control = pfControl)
 
-        particleFilterEst <-  nimbleSMC::buildBootstrapFilter(estimationModel,
+        particleFilterEst <-  myphdthesis::buildBootstrapFilterNew(estimationModel,
                                                               latent,
                                                               control = pfControl)
     }
@@ -138,7 +138,11 @@ message("Extracting the weights and samples from particle fiter")
 weights <- as.matrix( compiledParticleFilterEst$particleFilterEst$mvWSamples, "wts")
 unweightedSamples <- as.matrix( compiledParticleFilterEst$particleFilterEst$mvWSamples, latent)
 weightedSamples <- as.matrix( compiledParticleFilterEst$particleFilterEst$mvEWSamples, latent)
-logLike <- as.matrix( compiledParticleFilterEst$particleFilterEst$mvWSamples, "auxlog")
+if(pfType == "auxiliary"){
+  logLike <- as.matrix( compiledParticleFilterEst$particleFilterEst$mvWSamples, "auxlog")
+}else{
+  logLike <- as.matrix( compiledParticleFilterEst$particleFilterEst$mvWSamples, "bootLL")
+}
 
 
   message("Returning the results")
@@ -188,8 +192,9 @@ spartaNimUpdates <- function(model, #nimbleModel
 
   message("Building particle filter for model")
   if(!is.null(pfType)){
-    # if(!pfType %in% c("auxiliary", "bootstrap")) stop("Function currently works for auxiliary and bootstap Particle filters")
-    particleFilter <- myphdthesis::buildAuxiliaryFilterUpdate(model,
+   if(!pfType %in% c("auxiliary", "bootstrap")) stop("Function currently works for auxiliary and bootstap Particle filters")
+   if(pfType == "bootstrap"){
+     particleFilter <- myphdthesis::buildBootstrapFilterUpdate(model,
                                                               latent,
                                                              mvWSamplesWTSaved = weights,
                                                               mvWSamplesXSaved = unweightedLatentSamples,
@@ -197,14 +202,31 @@ spartaNimUpdates <- function(model, #nimbleModel
                                                               logLikeVals = loglike,
                                                               control = pfControl)
 
-    particleFilterEst <- myphdthesis::buildAuxiliaryFilterUpdate(estimationModel,
+    particleFilterEst <- myphdthesis::buildBootstrapFilterUpdate(estimationModel,
                                                                     latent,
                                                                     mvWSamplesWTSaved = weights,
                                                                     mvWSamplesXSaved = unweightedLatentSamples,
                                                                     mvEWSamplesXSaved = weightedLatentSamples,
                                                                     logLikeVals = loglike,
                                                                     control = pfControl)
-  }else{
+   }else{
+     particleFilter <- myphdthesis::buildAuxiliaryFilterUpdate(model,
+                                                               latent,
+                                                               mvWSamplesWTSaved = weights,
+                                                               mvWSamplesXSaved = unweightedLatentSamples,
+                                                               mvEWSamplesXSaved = weightedLatentSamples,
+                                                               logLikeVals = loglike,
+                                                               control = pfControl)
+
+     particleFilterEst <- myphdthesis::buildAuxiliaryFilterUpdate(estimationModel,
+                                                                  latent,
+                                                                  mvWSamplesWTSaved = weights,
+                                                                  mvWSamplesXSaved = unweightedLatentSamples,
+                                                                  mvEWSamplesXSaved = weightedLatentSamples,
+                                                                  logLikeVals = loglike,
+                                                                  control = pfControl)
+   }
+    }else{
     particleFilter <- myphdthesis::buildAuxiliaryFilterUpdate(model,
                                                               latent,
                                                               mvWSamplesWTSaved = weights,
@@ -236,14 +258,27 @@ spartaNimUpdates <- function(model, #nimbleModel
   weightsNew <- as.matrix( compiledParticleFilter$particleFilter$mvWSamples, "wts")
   unweightedSamples <- as.matrix( compiledParticleFilter$particleFilter$mvWSamples, latent)
   weightedSamples <- as.matrix( compiledParticleFilter$particleFilter$mvEWSamples, latent)
-  loglike <- as.matrix( compiledParticleFilter$particleFilter$mvWSamples, "auxlog")
+  if(pfType == "auxiliary"){
+    logLike <- as.matrix( compiledParticleFilter$particleFilterEst$mvWSamples, "auxlog")
+  }else{
+    logLike <- as.matrix( compiledParticleFilter$particleFilterEst$mvWSamples, "bootLL")
+  }
+
   message("Setting up the MCMC Configuration")
   #newModel <- model$newModel(replicate = TRUE)
   modelMCMCconf <- nimble::configureMCMC(model, nodes = NULL)
 
-  pfType = 'auxiliaryUpdate'
-
-
+  if(is.null(pfType)){
+    pfTypeUpdate = 'auxiliaryUpdate'
+  }else{
+if(pfType == "bootstrap"){
+  pfTypeUpdate = 'bootstrapUpdate'
+  }else{
+  if(pfType == "auxiliary") {
+    pfTypeUpdate = 'auxiliaryUpdate'
+    }
+  }
+  }
   mvWSamplesWTSaved = weights
   mvWSamplesXSaved = unweightedLatentSamples
   mvEWSamplesXSaved = weightedLatentSamples
@@ -253,7 +288,7 @@ spartaNimUpdates <- function(model, #nimbleModel
                            control = list(latents = latent,
                                           pfControl = list(saveAll = TRUE, M = M, iNodePrev = iNodePrev),
                                           pfNparticles = nParFiltRun,
-                                          pfType = pfType,
+                                          pfType = pfTypeUpdate,
                                           weights = weights,
                                           unweightedSamples= unweightedLatentSamples,
                                           weightedSamples = weightedLatentSamples,
@@ -304,12 +339,15 @@ spartaNimUpdates <- function(model, #nimbleModel
 
 
   #save weights and samples
-  message("Extracting the weights and samples from particle fiter")
-  weights <- as.matrix( compiledParticleFilterEst$particleFilterEst$mvWSamples, "wts")
-  unweightedSamples <- as.matrix( compiledParticleFilterEst$particleFilterEst$mvWSamples, latent)
+  message("Extracting the weights and samples from posterior particle fiter")
+  weights <- as.matrix(compiledParticleFilterEst$particleFilterEst$mvWSamples, "wts")
+  unweightedSamples <- as.matrix(compiledParticleFilterEst$particleFilterEst$mvWSamples, latent)
   weightedSamples <- as.matrix( compiledParticleFilterEst$particleFilterEst$mvEWSamples, latent)
-  logLike <- as.matrix( compiledParticleFilterEst$particleFilterEst$mvWSamples, "auxlog")
-
+  if(pfType == "auxiliary"){
+  logLike <- as.matrix(compiledParticleFilterEst$particleFilterEst$mvWSamples, "auxlog")
+  }else{
+    logLike <- as.matrix(compiledParticleFilterEst$particleFilterEst$mvWSamples, "bootLL")
+}
 
 
   message("Returning the results")
