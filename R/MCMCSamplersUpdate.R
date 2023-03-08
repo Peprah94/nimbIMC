@@ -242,7 +242,7 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
     propCov             <- extractControlElement(control, 'propCov',              'identity')
     existingPF          <- extractControlElement(control, 'pf',                   NULL)
     m                   <- extractControlElement(control, 'pfNparticles',         1000)
-    filterType          <- extractControlElement(control, 'pfType',               'auxiliaryUpdate')
+    filterType          <- extractControlElement(control, 'pfType',               'bootstrapUpdate')
     filterControl       <- extractControlElement(control, 'pfControl',            list())
     optimizeM           <- extractControlElement(control, 'pfOptimizeNparticles', FALSE)
     latents             <- extractControlElement(control, 'latents',              error = 'RW_PF sampler missing required control argument: latents')

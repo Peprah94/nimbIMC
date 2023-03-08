@@ -27,20 +27,32 @@ bootFStepUpdate <- nimbleFunction(
                    smoothing,
                    resamplingMethod,
                    silent = FALSE,
-                   iNodePrev, mvWSamplesWTSaved,
+                   iNodePrev,
+                   mvWSamplesWTSaved,
                    mvWSamplesXSaved,
                    mvEWSamplesXSaved,
                    logLikeVals,
                    latent) {
     notFirst <- iNode != 1
-    modelSteps <- particleFilter_splitModelSteps(model, nodes, iNode, notFirst)
-    prevDeterm <- modelSteps$prevDeterm
-    calc_thisNode_self <- modelSteps$calc_thisNode_self
-    calc_thisNode_deps <- modelSteps$calc_thisNode_deps
 
-    prevNode <- nodes[if(notFirst) iNode-1 else iNode]
-    thisNode <- nodes[iNode]
-    ## prevDeterm <- model$getDependencies(prevNode, determOnly = TRUE)
+     #if(iNode == iNodePrev){
+     #modelSteps <- particleFilter_splitModelSteps(model, nodes, iNode, notFirst)
+     #prevDeterm <- modelSteps$prevDeterm
+     #prevDeterm <- model$getDependencies(prevNodeUpdates, determOnly = TRUE)
+     #calc_thisNode_self <- modelSteps$calc_thisNode_self
+     #calc_thisNode_deps <- modelSteps$calc_thisNode_deps
+     #prevDeterm <- prevDeterm[!prevDeterm %in%calc_thisNode_deps]
+     #}else{
+      modelSteps <- particleFilter_splitModelSteps(model, nodes, iNode, notFirst)
+      prevDeterm <- modelSteps$prevDeterm
+      calc_thisNode_self <- modelSteps$calc_thisNode_self
+      calc_thisNode_deps <- modelSteps$calc_thisNode_deps
+   # }
+
+      prevNode <- nodes[if(notFirst) iNode-1 else iNode]
+      prevNodeUpdates <- nodes[if(notFirst) 1:(iNode-1) else iNode]
+      thisNode <- nodes[iNode]
+    ## prevDeterm <- model$getDependencies(prevNodeUpdates, determOnly = TRUE)
     ## thisDeterm <- model$getDependencies(thisNode, determOnly = TRUE)
     ## thisData   <- model$getDependencies(thisNode, dataOnly = TRUE)
     ## t is the current time point.
@@ -48,6 +60,7 @@ bootFStepUpdate <- nimbleFunction(
     ## Get names of xs node for current and previous time point (used in copy)
     if(saveAll == 1){
       allPrevNodes <- model$expandNodeNames(nodes[1:(iNode-1)])
+      prevNodesXName <- prevNodeUpdates
       prevXName <- prevNode
       thisXName <- thisNode
       currInd <- t
@@ -85,6 +98,7 @@ bootFStepUpdate <- nimbleFunction(
                  prevSamp = logical()) {
     returnType(double(1))
     wts <- numeric(m, init=FALSE)
+    wts1 <- numeric(m, init=FALSE)
     ids <- integer(m, 0)
     llEst <- numeric(m, init=FALSE)
     out <- numeric(2, init=FALSE)
@@ -96,20 +110,26 @@ bootFStepUpdate <- nimbleFunction(
           copy(mvEWSamples, mvWSamples, nodes = allPrevNodes,
                nodesTo = allPrevNodes, row = i, rowTo=i)
         }
+         if(t == iNodePrev){
+           copy(mvEWSamples, model, nodes = prevNodesXName, nodesTo = prevNodeUpdates, row = i)
+          model$calculate(prevDeterm)
+         }else{
         copy(mvEWSamples, model, nodes = prevXName, nodesTo = prevNode, row = i)
         model$calculate(prevDeterm)
+        }
       }
+
       model$simulate(calc_thisNode_self)
       ## The logProbs of calc_thisNode_self are, correctly, not calculated.
       copy(model, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
-      wts[i]  <- model$calculate(calc_thisNode_deps)
-      if(is.nan(wts[i])){
+      wts1[i]  <- model$calculate(calc_thisNode_deps)
+      if(is.nan(wts1[i])){
         out[1] <- -Inf
         out[2] <- 0
         return(out)
       }
       if(prevSamp == 0){ ## defaults to 1 for first step and then comes from the previous step
-        wts[i] <- wts[i] + mvWSamples['wts',i][prevInd]
+        wts[i] <- wts1[i] + mvWSamples['wts',i][prevInd] #mvWSamples['wts',i][currInd]
         llEst[i] <- wts[i]
       } else {
         llEst[i] <- wts[i] - log(m)
@@ -184,80 +204,85 @@ bootFStepUpdate <- nimbleFunction(
 
         mvWSamples[latent,i][currInd] <<- mvWSamplesXSaved[i, currInd]
         mvEWSamples[latent,i][currInd] <<- mvEWSamplesXSaved[i, currInd]
-        mvWSamples['wts',i][currInd] <<- mvWSamplesWTSaved[i, currInd]
-        mvWSamples['bootLL',i][currInd] <<- out[1]
+        mvWSamples['wts',i][prevInd] <<- mvWSamplesWTSaved[i, prevInd]
+        mvWSamples['bootLL',i][currInd] <<- logLikeVals[1, currInd]
+
+        wts[i] <- mvWSamplesWTSaved[i, currInd]
+      }
+        out[1] <- logLikeVals[1, currInd]
+        out[2] <- 0
         #model$simulate(calc_thisNode_self)
         ## The logProbs of calc_thisNode_self are, correctly, not calculated.
         #copy(model, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
        # wts[i]  <- model$calculate(calc_thisNode_deps)
-        wts[i] <- mvWSamplesWTSaved[i, currInd]
-         if(is.nan(wts[i])){
-          out[1] <- -Inf
-          out[2] <- 0
-          return(out)
-        }
-        if(prevSamp == 0){ ## defaults to 1 for first step and then comes from the previous step
-          wts[i] <- mvWSamplesWTSaved[i, currInd]
-          llEst[i] <- wts[i]
-        } else {
-          llEst[i] <- mvWSamplesWTSaved[i, currInd]
-        }
-      }
 
-      maxllEst <- max(llEst)
-      stepllEst <- maxllEst + log(sum(exp(llEst - maxllEst)))
-      if(is.nan(stepllEst)){
-        out[1] <- -Inf
-        out[2] <- 0
-        return(out)
-      }
-      if(stepllEst == Inf | stepllEst == -Inf){
-        out[1] <- -Inf
-        out[2] <- 0
-        return(out)
-      }
-
-      out[1] <- logLikeVals[1, currInd]
-
-      ## Normalize weights and calculate effective sample size, using log-sum-exp trick to avoid underflow.
-      maxWt <- max(wts)
-      wts <- exp(wts - maxWt)/sum(exp(wts - maxWt))
-      ess <<- 1/sum(wts^2)
-
-      ## Determine whether to resample by weights or not.
-      if(ess < threshNum){
-        if(defaultResamplerFlag){
-          rankSample(wts, m, ids, silent)
-        } else {
-          ids <- resamplerFunctionList[[1]]$run(wts)
-        }
-        ## out[2] is an indicator of whether resampling takes place.
-        ## Resampling affects how ll estimate is calculated at next time point.
-        out[2] <- 1
-        for(i in 1:m){
-          copy(mvWSamples, mvEWSamples, nodes = thisXName, nodesTo = thisXName,
-               row = ids[i], rowTo = i)
-          if(smoothing == 1){
-            copy(mvWSamples, mvEWSamples, nodes = allPrevNodes,
-                 nodesTo = allPrevNodes, row = ids[i], rowTo=i)
-          }
-          mvWSamples['wts',i][currInd] <<- mvWSamplesWTSaved[i, currInd]
-        }
-      } else {
-        out[2] <- 0
-        for(i in 1:m){
-          copy(mvWSamples, mvEWSamples, nodes = thisXName, nodesTo = thisXName,
-               row = i, rowTo = i)
-          if(smoothing == 1){
-            copy(mvWSamples, mvEWSamples, nodes = allPrevNodes,
-                 nodesTo = allPrevNodes, row = i, rowTo=i)
-          }
-          mvWSamples['wts',i][currInd] <<- mvWSamplesWTSaved[i, currInd]
-        }
-      }
-      for(i in 1:m){
-        mvWSamples['bootLL',i][currInd] <<- out[1]
-      }
+      #    if(is.nan(wts[i])){
+      #     out[1] <- -Inf
+      #     out[2] <- 0
+      #     return(out)
+      #   }
+      #   if(prevSamp == 0){ ## defaults to 1 for first step and then comes from the previous step
+      #     wts[i] <- mvWSamplesWTSaved[i, currInd]
+      #     llEst[i] <- wts[i]
+      #   } else {
+      #     llEst[i] <- mvWSamplesWTSaved[i, currInd]
+      #   }
+      # }
+      #
+      # maxllEst <- max(llEst)
+      # stepllEst <- maxllEst + log(sum(exp(llEst - maxllEst)))
+      # if(is.nan(stepllEst)){
+      #   out[1] <- -Inf
+      #   out[2] <- 0
+      #   return(out)
+      # }
+      # if(stepllEst == Inf | stepllEst == -Inf){
+      #   out[1] <- -Inf
+      #   out[2] <- 0
+      #   return(out)
+      # }
+      #
+      # out[1] <- logLikeVals[1, currInd]
+      #
+      # ## Normalize weights and calculate effective sample size, using log-sum-exp trick to avoid underflow.
+       maxWt <- max(wts)
+       wts <- exp(wts - maxWt)/sum(exp(wts - maxWt))
+       ess <<- 1/sum(wts^2)
+      #
+      # ## Determine whether to resample by weights or not.
+      # if(ess < threshNum){
+      #   if(defaultResamplerFlag){
+      #     rankSample(wts, m, ids, silent)
+      #   } else {
+      #     ids <- resamplerFunctionList[[1]]$run(wts)
+      #   }
+      #   ## out[2] is an indicator of whether resampling takes place.
+      #   ## Resampling affects how ll estimate is calculated at next time point.
+      #   out[2] <- 1
+      #   for(i in 1:m){
+      #     copy(mvWSamples, mvEWSamples, nodes = thisXName, nodesTo = thisXName,
+      #          row = ids[i], rowTo = i)
+      #     if(smoothing == 1){
+      #       copy(mvWSamples, mvEWSamples, nodes = allPrevNodes,
+      #            nodesTo = allPrevNodes, row = ids[i], rowTo=i)
+      #     }
+      #     mvWSamples['wts',i][currInd] <<- mvWSamplesWTSaved[i, currInd]
+      #   }
+      # } else {
+      #   out[2] <- 0
+      #   for(i in 1:m){
+      #     copy(mvWSamples, mvEWSamples, nodes = thisXName, nodesTo = thisXName,
+      #          row = i, rowTo = i)
+      #     if(smoothing == 1){
+      #       copy(mvWSamples, mvEWSamples, nodes = allPrevNodes,
+      #            nodesTo = allPrevNodes, row = i, rowTo=i)
+      #     }
+      #     mvWSamples['wts',i][currInd] <<- mvWSamplesWTSaved[i, currInd]
+      #   }
+      # }
+      # for(i in 1:m){
+      #   mvWSamples['bootLL',i][currInd] <<- out[1]
+      # }
       return(out)
 
       #  for(i in 1: m){

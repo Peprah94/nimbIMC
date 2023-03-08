@@ -27,7 +27,7 @@ particleFilter_splitModelSteps <- function(model,
     calc_thisNode_self <- thisNodeExpanded
   }
   ## calc_thisNode_deps <- all_deps_from_thisNode[-(1:finalSelfIndex)] ## some of these could be unnecessary...
-  
+
   ## Roughly we have prevNode -> prevDeterm -> thisNode -> thisDeterm -> thisData
   ## However, there is further sorting to do.
   ## prevDeterm may have (i) components not really needed for thisNode (leading to other parts of the graph).
@@ -41,7 +41,7 @@ particleFilter_splitModelSteps <- function(model,
   ##
   ## In bootFstep, the prevDeterm and thisNode could be combined, but that is not the case in auxFstep,
   ## because it breaks apart thisNode for doing the lookahead
-  prevDeterm <- model$getDependencies(prevNode, determOnly = TRUE)
+  prevDeterm <- model$getDependencies(prevNode, determOnly = TRUE, downstream = FALSE)
   ## Weed out any prevDeterm elements that do not lead to part of thisNode
   if(length(prevDeterm) > 0) {
     keep_prevDeterm <- logical(length(prevDeterm))
@@ -61,13 +61,13 @@ particleFilter_splitModelSteps <- function(model,
     }
     prevDeterm <- prevDeterm[ keep_prevDeterm ]
   }
-  
+
   ## So far we have prevNode -> prevDeterm -> calc_thisNode_self -> calc_thisNode_deps
   ## calc_thisNode_deps combines the old thisDeterm and thisData.
   ## Separating out determ and data calcs is not necessary, but we do need to skip calcs
   ## that lead to the next latent nodes.
   ## A question is whether we condition only on data -- I think yes.
-  
+
   ## Do similar weeding of calc_thisNode_deps in relation to thisData.
   ## calc_thisNode_deps includes determ+data dependencies of thisNode but excludes intermediate deterministic
   ##    nodes that need to be calculated between multiple nodes of thisNode.
@@ -100,7 +100,7 @@ fillIndices <- function(node, info, returnExpr = FALSE) {
     node <- parse(text = node)[[1]]
     if(info$nDim != length(node) - 2 || node[[1]] != '[')
         stop("findLatentNodes: invalid node expression: ", node, ".")
-    for(i in seq_len(info$nDim)) { 
+    for(i in seq_len(info$nDim)) {
         if(node[[i+2]] == "") {
             node[[i+2]] <- substitute(A:B,
                                       list(A = info$mins[i], B = info$maxs[i]))
@@ -110,7 +110,7 @@ fillIndices <- function(node, info, returnExpr = FALSE) {
     }
     if(!returnExpr)
         node <- deparse(node)
-    return(node)    
+    return(node)
 }
 
 findLatentNodes <- function(model, nodes, timeIndex = NULL) {
@@ -134,23 +134,23 @@ findLatentNodes <- function(model, nodes, timeIndex = NULL) {
         if(nodes == varName)
             ## 'nodes' is a variable, so setup indexing
             nodes <- paste0(varName, '[', paste0(rep(',', info$nDim - 1), collapse = ''), ']')
-        
+
         nodeExpr <- fillIndices(nodes, info, returnExpr = TRUE)
         indexLengths <- sapply(nodeExpr[3:length(nodeExpr)],
                                function(x) length(eval(x)))
         ## Determine time index as longest dimension if not provided
         if(is.null(timeIndex)){
             maxLength <- max(indexLengths)
-            if(sum(indexLengths == maxLength) > 1)         
+            if(sum(indexLengths == maxLength) > 1)
                 stop("findLatentNodes: unable to determine which dimension indexes time. Specify manually using the 'timeIndex' control list argument.")
             timeIndex <- which.max(indexLengths)
             timeLength <- maxLength
         } else{
             timeLength <- indexLengths[timeIndex]
         }
-        
+
         timeIndices <- nodeExpr[[timeIndex+2]]  # timeIndices is unevaluated
-        
+
         ## Expand so will have one 'node' per time point, overwriting time dimension.
         nodes <- rep('', timeLength)
         cnt <- 1

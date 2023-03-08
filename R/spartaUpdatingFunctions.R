@@ -323,7 +323,8 @@ spartaNimUpdates <- function(model, #nimbleModel
                              weights,
                              weightedLatentSamples,
                              unweightedLatentSamples,
-                             loglike
+                             loglike,
+                             postReducedMCMC
 ){
   timeStart1 <- Sys.time()
   target = MCMCconfiguration[["target"]]
@@ -337,6 +338,15 @@ spartaNimUpdates <- function(model, #nimbleModel
   #iNodePrev = updatePFControl[["iNodePrev"]]
   #M = updatePFControl[["M"]]
   if(is.null(nParFiltRun)) nParFiltRun = 10000
+
+
+  inits <- as.list(target)
+  names(inits) <- target
+  for(i in 1:length(target)){
+    inits[target[i]] <- postReducedMCMC$summary$all.chains[target[i], 'Mean']
+  }
+
+  model$setInits(inits)
 
   #create new model for weights
   estimationModel <- model$newModel(replicate = TRUE)
@@ -403,7 +413,7 @@ spartaNimUpdates <- function(model, #nimbleModel
   #compiling the model
   compiledParticleFilter <- nimble::compileNimble(model,  particleFilter)
 
-  #Loflikelihood of last run and the Effective sample sizes
+  #Log likelihood of last run and the Effective sample sizes
   message("Running the particle filter")
   logLik <-   compiledParticleFilter$particleFilter$run(m = nParFiltRun)
   ESS <-   compiledParticleFilter$particleFilter$returnESS()
@@ -413,7 +423,7 @@ spartaNimUpdates <- function(model, #nimbleModel
   modelMCMCconf <- nimble::configureMCMC(model, nodes = NULL)
 
   if(is.null(pfType)){
-    pfTypeUpdate = 'auxiliaryUpdate'
+    pfTypeUpdate = 'bootstrapUpdate'
   }else{
 if(pfType == "bootstrap"){
   pfTypeUpdate = 'bootstrapUpdate'
