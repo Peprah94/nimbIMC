@@ -110,9 +110,9 @@ baselineSpartaEstimation <- function(model, #nimbleModel
 
   message(paste("Estimating weights at posteror values of ", target))
   #posteriorEstimates <- mcmc.out$summary$all.chains[target, 'Mean']
-
-  for(i in 1:length(target)){
-    estimationModel[[target[i]]] <- mcmc.out$summary$all.chains[target[i], 'Mean']
+expandTarget <- model$expandNodeNames(target)
+  for(i in 1:length(expandTarget)){
+    estimationModel[[expandTarget[i]]] <- mcmc.out$summary$all.chains[expandTarget[i], 'Mean']
   }
 
   message("Compiling the estimation particle filter")
@@ -263,8 +263,9 @@ timetaken2 <- timeEnd - timeStart2
 message(paste("Estimating weights at posteror values of ", target))
 #posteriorEstimates <- mcmc.out$summary$all.chains[target, 'Mean']
 
-for(i in 1:length(target)){
-estimationModel[[target[i]]] <- mcmc.out$summary$all.chains[target[i], 'Mean']
+expandTarget <- model$expandNodeNames(target)
+for(i in 1:length(expandTarget)){
+  estimationModel[[expandTarget[i]]] <- mcmc.out$summary$all.chains[expandTarget[i], 'Mean']
 }
 
 message("Compiling the estimation particle filter")
@@ -506,8 +507,9 @@ if(pfType == "bootstrap"){
   message(paste("Estimating weights at posteror values of ", target))
   #posteriorEstimates <- mcmc.out$summary$all.chains[target, 'Mean']
 
-  for(i in 1:length(target)){
-    estimationModel[[target[i]]] <- mcmc.out$summary$all.chains[target[i], 'Mean']
+  expandTarget <- model$expandNodeNames(target)
+  for(i in 1:length(expandTarget)){
+    estimationModel[[expandTarget[i]]] <- mcmc.out$summary$all.chains[expandTarget[i], 'Mean']
   }
 
   message("Compiling the estimation particle filter")

@@ -3,6 +3,11 @@ library(nimbleSMC)
 library(myphdthesis)
 set.seed(1)
 
+
+
+
+#devtools::install_github("Peprah94/myphdthesis")
+
 load("~/Documents/GitHub/myphdthesis/case2SimData.RData")
 load("~/Documents/GitHub/myphdthesis/case2NormalMCMC.RData")
 load("~/Documents/GitHub/myphdthesis/reducedCase2.RData")
