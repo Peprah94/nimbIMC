@@ -370,11 +370,11 @@ spartaNimUpdates <- function(model, #nimbleModel
   #M = updatePFControl[["M"]]
   if(is.null(nParFiltRun)) nParFiltRun = 10000
 
-  expandTarget <- model$expandNodeNames(target)
-  inits <- as.list(expandTarget)
-  names(inits) <- expandTarget
-  for(i in 1:length(expandTarget)){
-    inits[expandTarget[i]] <- postReducedMCMC$summary$all.chains[expandTarget[i], 'Mean']
+  inits <- as.list(target)
+  names(inits) <- target
+  for(i in 1:length(target)){
+    expandTarget <- model$expandNodeNames(target[i])
+    inits[[target[i]]] <- c(postReducedMCMC$summary$all.chains[expandTarget, 'Mean'])
   }
 
   model$setInits(inits)
