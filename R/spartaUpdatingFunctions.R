@@ -9,10 +9,6 @@ baselineSpartaEstimation <- function(model, #nimbleModel
                                                       smoothing = FALSE), #list of controls for particle filter
                                      nParFiltRun = NULL, #Number of PF runs
                                      latent #the latent variable
-                                     #newData,
-                                     #weights,
-                                     #weightedLatentSamples,
-                                     #unweightedLatentSamples
 ){
 
   timeStart1 <- Sys.time()
@@ -53,11 +49,11 @@ baselineSpartaEstimation <- function(model, #nimbleModel
                                                                  control = pfControl)
     }
   }else{
-    particleFilter <- nimbleSMC::buildAuxiliaryFilter(model,
+    particleFilter <- nimbleSMC::buildBootstrapFilter(model,
                                                            latent,
                                                            control = pfControl)
 
-    particleFilterEst <- nimbleSMC::buildAuxiliaryFilter(estimationModel,
+    particleFilterEst <- nimbleSMC::buildBootstrapFilter(estimationModel,
                                                               latent,
                                                               control = pfControl)
   }
@@ -75,7 +71,7 @@ baselineSpartaEstimation <- function(model, #nimbleModel
   #model <- model$newModel(replicate = TRUE)
   modelMCMCconf <- nimble::configureMCMC(model, nodes = NULL)
 
-  if(is.null(pfType)) pfType = "auxiliary" #set auxiliary as default pfType
+  if(is.null(pfType)) pfType = "bootstrap" #set bootstrap as default pfType
 
   modelMCMCconf$addSampler(target = target,
                            type = 'RW_PF_block',
@@ -109,8 +105,8 @@ baselineSpartaEstimation <- function(model, #nimbleModel
                               WAIC = FALSE)
   timeEnd <- Sys.time()
 
-  timetaken1 <- as.numeric(round(timeEnd - timeStart1, 4))
-  timetaken2 <- as.numeric(round(timeEnd - timeStart2, 4))
+  timetaken1 <- timeEnd - timeStart1
+  timetaken2 <- timeEnd - timeStart2
 
   message(paste("Estimating weights at posteror values of ", target))
   #posteriorEstimates <- mcmc.out$summary$all.chains[target, 'Mean']
@@ -145,7 +141,8 @@ baselineSpartaEstimation <- function(model, #nimbleModel
                      particleFilter = particleFilter,
                      mcmcSamplesAndSummary = mcmc.out,
                      timeTakenAll = timetaken1,
-                     timeTakenRun = timetaken2)
+                     timeTakenRun = timetaken2,
+                     ess = ESS)
 
   return(returnList)
 }
@@ -162,10 +159,6 @@ spartaNimWeights <- function(model, #nimbleModel
                                               smoothing = FALSE), #list of controls for particle filter
                              nParFiltRun = NULL, #Number of PF runs
                              latent #the latent variable
-                             #newData,
-                             #weights,
-                             #weightedLatentSamples,
-                             #unweightedLatentSamples
 ){
 
   timeStart1 <- Sys.time()
@@ -175,6 +168,7 @@ spartaNimWeights <- function(model, #nimbleModel
   n.chains = MCMCconfiguration[["n.chains"]]
   n.burnin = MCMCconfiguration[["n.burnin"]]
   n.thin = MCMCconfiguration[["n.thin"]]
+  smoothing = pfControl[["smoothing"]]
 
   if(is.null(nParFiltRun)) nParFiltRun = 10000
 
@@ -207,11 +201,11 @@ spartaNimWeights <- function(model, #nimbleModel
                                                               control = pfControl)
     }
   }else{
-    particleFilter <- myphdthesis::buildAuxiliaryFilterNew(model,
+    particleFilter <- myphdthesis::buildBootstrapFilterNew(model,
                                                            latent,
                                                            control = pfControl)
 
-      particleFilterEst <- myphdthesis::buildAuxiliaryFilterNew(estimationModel,
+      particleFilterEst <- myphdthesis::buildBootstrapFilterNew(estimationModel,
                                                            latent,
                                                            control = pfControl)
   }
@@ -229,7 +223,7 @@ spartaNimWeights <- function(model, #nimbleModel
   #model <- model$newModel(replicate = TRUE)
   modelMCMCconf <- nimble::configureMCMC(model, nodes = NULL)
 
-  if(is.null(pfType)) pfType = "auxiliary" #set auxiliary as default pfType
+  if(is.null(pfType)) pfType = "bootstrap" #set auxiliary as default pfType
 
   modelMCMCconf$addSampler(target = target,
                            type = 'RW_PF_block',
@@ -263,8 +257,8 @@ spartaNimWeights <- function(model, #nimbleModel
                               WAIC = FALSE)
 timeEnd <- Sys.time()
 
-timetaken1 <- as.numeric(round(timeEnd - timeStart1, 2))
-timetaken2 <- as.numeric(round(timeEnd - timeStart2, 2))
+timetaken1 <- timeEnd - timeStart1
+timetaken2 <- timeEnd - timeStart2
 
 message(paste("Estimating weights at posteror values of ", target))
 #posteriorEstimates <- mcmc.out$summary$all.chains[target, 'Mean']
@@ -295,6 +289,38 @@ if(pfType == "auxiliary"){
 }
 
 
+message("Saving unsampled and sampled values in model values for updating")
+m = getsize(compiledParticleFilterEst$particleFilterEst$mvWSamples)
+names <- compiledParticleFilterEst$particleFilterEst$mvWSamples$varNames
+size <- compiledParticleFilterEst$particleFilterEst$mvWSamples$sizes
+type <- c("double", "double", "double")
+
+if(pfType == "bootstrap"){
+namesEWS <- names[!names %in% c("bootLL", "wts")]
+}else{
+  namesEWS <- names[!names %in% c("bootLL", "auxlog")]
+}
+index <- which(names == namesEWS)
+mvEWS <- modelValues(modelValuesConf(vars = namesEWS,
+                                     types = type[index],
+                                     sizes = size[index]))
+if(smoothing){
+  size$wts <- 1
+  size$bootLL <- 1
+}
+mvWS  <- modelValues(modelValuesConf(vars = names,
+                                     types = type,
+                                     sizes = size))
+
+resize(mvWS, m)
+resize(mvEWS, m)
+
+for(i in 1: m){
+  mvEWS[[namesEWS]][[i]] <- weightedSamples[i,]
+  mvWS[[namesEWS]][[i]] <- unweightedSamples[i,]
+}
+
+
   message("Returning the results")
   #list to return
   returnList <- list(weights = weights,
@@ -304,7 +330,11 @@ if(pfType == "auxiliary"){
                      particleFilter = particleFilter,
                      mcmcSamplesAndSummary = mcmc.out,
                      timeTakenAll = timetaken1,
-                     timeTakenRun = timetaken2)
+                     timeTakenRun = timetaken2,
+                     ess = ESS,
+                     #compiledParticleFilterEst = compiledParticleFilterEst,
+                     mvWS = mvWS,
+                     mvEWS = mvEWS)
 
   return(returnList)
 }
@@ -470,8 +500,8 @@ if(pfType == "bootstrap"){
                               WAIC = FALSE)
   timeEnd <- Sys.time()
 
-  timetaken1 <- as.numeric(round(timeEnd - timeStart1, 4))
-  timetaken2 <- as.numeric(round(timeEnd - timeStart2, 4))
+  timetaken1 <- timeEnd - timeStart1
+  timetaken2 <- timeEnd - timeStart2
 
   message(paste("Estimating weights at posteror values of ", target))
   #posteriorEstimates <- mcmc.out$summary$all.chains[target, 'Mean']
@@ -512,7 +542,10 @@ if(pfType == "bootstrap"){
                      particleFilter = particleFilter,
                      mcmcSamplesAndSummary = mcmc.out,
                      timeTakenAll = timetaken1,
-                     timeTakenRun = timetaken2)
+                     timeTakenRun = timetaken2,
+                     ess = ESS#,
+                     #compiledParticleFilterEst  = compiledParticleFilterEst
+                     )
 
   return(returnList)
 }

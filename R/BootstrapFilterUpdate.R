@@ -50,17 +50,13 @@ bootFStepUpdate <- nimbleFunction(
    # }
 
       prevNode <- nodes[if(notFirst) iNode-1 else iNode]
-      prevNodeUpdates <- nodes[if(notFirst) 1:(iNode-1) else iNode]
       thisNode <- nodes[iNode]
-    ## prevDeterm <- model$getDependencies(prevNodeUpdates, determOnly = TRUE)
-    ## thisDeterm <- model$getDependencies(thisNode, determOnly = TRUE)
-    ## thisData   <- model$getDependencies(thisNode, dataOnly = TRUE)
+
     ## t is the current time point.
     t <- iNode
     ## Get names of xs node for current and previous time point (used in copy)
     if(saveAll == 1){
       allPrevNodes <- model$expandNodeNames(nodes[1:(iNode-1)])
-      prevNodesXName <- prevNodeUpdates
       prevXName <- prevNode
       thisXName <- thisNode
       currInd <- t
@@ -98,7 +94,7 @@ bootFStepUpdate <- nimbleFunction(
                  prevSamp = logical()) {
     returnType(double(1))
     wts <- numeric(m, init=FALSE)
-    wts1 <- numeric(m, init=FALSE)
+    #wts1 <- numeric(m, init=FALSE)
     ids <- integer(m, 0)
     llEst <- numeric(m, init=FALSE)
     out <- numeric(2, init=FALSE)
@@ -110,26 +106,22 @@ bootFStepUpdate <- nimbleFunction(
           copy(mvEWSamples, mvWSamples, nodes = allPrevNodes,
                nodesTo = allPrevNodes, row = i, rowTo=i)
         }
-         if(t == iNodePrev){
-           copy(mvEWSamples, model, nodes = prevNodesXName, nodesTo = prevNodeUpdates, row = i)
-          model$calculate(prevDeterm)
-         }else{
         copy(mvEWSamples, model, nodes = prevXName, nodesTo = prevNode, row = i)
         model$calculate(prevDeterm)
         }
-      }
+      #}
 
       model$simulate(calc_thisNode_self)
       ## The logProbs of calc_thisNode_self are, correctly, not calculated.
       copy(model, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
-      wts1[i]  <- model$calculate(calc_thisNode_deps)
-      if(is.nan(wts1[i])){
+      wts[i]  <- model$calculate(calc_thisNode_deps)
+      if(is.nan(wts[i])){
         out[1] <- -Inf
         out[2] <- 0
         return(out)
       }
       if(prevSamp == 0){ ## defaults to 1 for first step and then comes from the previous step
-        wts[i] <- wts1[i] + mvWSamples['wts',i][prevInd] #mvWSamples['wts',i][currInd]
+        wts[i] <- wts[i] + mvWSamples['wts',i][prevInd] #mvWSamples['wts',i][currInd]
         llEst[i] <- wts[i]
       } else {
         llEst[i] <- wts[i] - log(m)
@@ -202,9 +194,11 @@ bootFStepUpdate <- nimbleFunction(
           #model$calculate(prevDeterm)
         }
 
-        mvWSamples[latent,i][currInd] <<- mvWSamplesXSaved[i, currInd]
-        mvEWSamples[latent,i][currInd] <<- mvEWSamplesXSaved[i, currInd]
-        mvWSamples['wts',i][prevInd] <<- mvWSamplesWTSaved[i, prevInd]
+        copy(mvWSamplesXSaved, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
+        copy(mvEWSamplesXSaved, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
+        #mvWSamples[latent,i][currInd] <<- mvWSamplesXSaved[i, currInd]
+        #mvEWSamples[latent,i][currInd] <<- mvEWSamplesXSaved[i, currInd]
+        mvWSamples['wts',i][currInd] <<- mvWSamplesWTSaved[i, currInd]
         mvWSamples['bootLL',i][currInd] <<- logLikeVals[1, currInd]
 
         wts[i] <- mvWSamplesWTSaved[i, currInd]
@@ -432,7 +426,7 @@ buildBootstrapFilterUpdate <- nimbleFunction(
                                  'residual')))
       stop('buildBootstrapFilter: "resamplingMethod" must be one of: "default", "multinomial", "systematic", "stratified", or "residual". ')
     ## latent state info
-    latent <- nodes
+
     nodes <- findLatentNodes(model, nodes, timeIndex)
     dims <- lapply(nodes, function(n) nimDim(model[[n]]))
     if(length(unique(dims)) > 1)
@@ -457,7 +451,7 @@ buildBootstrapFilterUpdate <- nimbleFunction(
       mvEWSamples <- modelValues(modelValuesConf(vars = names,
                                                  types = type,
                                                  sizes = size))
-
+      latent <- names
       names <- c(names, "wts", "bootLL")
       type <- c(type, "double", "double")
       size$wts <- length(dims)
@@ -480,7 +474,7 @@ buildBootstrapFilterUpdate <- nimbleFunction(
       mvEWSamples <- modelValues(modelValuesConf(vars = names,
                                                  types = type,
                                                  sizes = size))
-
+      latent <- names
       names <- c(names, "wts", "bootLL")
       type <- c(type, "double", "double")
       size$wts <- 1
