@@ -198,13 +198,13 @@ bootFStepUpdate <- nimbleFunction(
           #model$calculate(prevDeterm)
         }
 
-        nimCopy(mvSamplesEst, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
-        nimCopy(mvSamplesEst, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
+        copy(mvSamplesEst, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
+        copy(mvSamplesEst, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
         #copy(mvWSamplesXSaved, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
         #copy(mvEWSamplesXSaved, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
 
         #for(k in 1:nTarget){
-          nimCopy(from = mvSamplesEst, to = model, nodes = target[1],row = i)
+          #copy(from = mvSamplesEst, to = model, nodes = target[1],row = i)
         #}
         #mvWSamples[latent,i][currInd] <<- mvWSamplesXSaved[i, currInd]
         #mvEWSamples[latent,i][currInd] <<- mvEWSamplesXSaved[i, currInd]
