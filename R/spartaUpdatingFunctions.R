@@ -158,7 +158,8 @@ spartaNimWeights <- function(model, #nimbleModel
                                               #lookahead = "mean",
                                               smoothing = FALSE), #list of controls for particle filter
                              nParFiltRun = NULL, #Number of PF runs
-                             latent #the latent variable
+                             latent, #the latent variable
+                             mcmc = TRUE # logical if MCMC was used or not
 ){
 
   timeStart1 <- Sys.time()
@@ -170,6 +171,73 @@ spartaNimWeights <- function(model, #nimbleModel
   n.thin = MCMCconfiguration[["n.thin"]]
   smoothing = pfControl[["smoothing"]]
 
+  estimationModel <- model$newModel(replicate = TRUE)
+
+  if(mcmc == TRUE){
+    nMCompile <- compileNimble(model)
+    #
+    cMCMC <- configureMCMC(model, monitors = c(target, latent))
+    #
+    bMCMC <- buildMCMC(cMCMC)
+    #
+    coMCMC <- compileNimble(bMCMC, project = nMCompile)
+    #
+    timeStart2 <- Sys.time()
+    mcmc.out <- runMCMC(coMCMC,
+                            niter = n.iter,
+                            nchains = n.chains,
+                            nburnin = n.burnin,
+                            setSeed = TRUE,
+                            samples=TRUE,
+                            samplesAsCodaMCMC = TRUE,
+                            summary = TRUE,
+                            WAIC = FALSE)
+
+    timeEnd <- Sys.time()
+
+    timetaken1 <- timeEnd - timeStart1
+    timetaken2 <- timeEnd - timeStart2
+
+    #save weights and samples
+    message("Extracting the weights and samples from particle fiter")
+    latentNodes <- model$expandNodeNames("x")
+
+    m <- n.iter - n.burnin
+#
+    #save weight, weighted and unweighted samples
+    weights <- matrix(1, nrow = m, ncol = length(latentNodes))
+    unweightedSamples <- mcmc.out$samples$chain1[, latentNodes]
+    weightedSamples <- mcmc.out$samples$chain1[, latentNodes]
+
+    message("Saving unsampled and sampled values in model values for updating")
+    namesEst <- model$getNodeNames(stochOnly = TRUE, includeData = FALSE)
+    names <- c(target, latent)
+    type <- rep("double", length(names))
+    size <- as.list(sapply(names, function(x)length(estimationModel$expandNodeNames(x))))
+
+    mvSamplesEst <- modelValues(modelValuesConf(vars = names,
+                                                types = type,
+                                                sizes = size))
+    resize(mvSamplesEst, m)
+#mvSamplesEst <- list()
+logLike <- matrix(NA, nrow = m, ncol = length(latentNodes))
+for(i in 1: m){
+for(j in 1:length(names)){
+      mvSamplesEst[[names[j]]][[i]] <- mcmc.out$samples$chain1[i, estimationModel$expandNodeNames(names[j])]
+      nimCopy(from = mvSamplesEst, to = estimationModel, nodes = names[j],row = i)
+    }
+
+    for(k in 1:length(latentNodes)){
+      logLike[i,k] <- estimationModel$calculate()
+    }
+}
+
+#Model values for the weighted samples
+mvEWS <- mvWS <- mvSamplesEst
+
+ESS <- particleFilter <- NULL
+
+  }else{
   if(is.null(nParFiltRun)) nParFiltRun = 10000
 
   #create new model for weights
@@ -320,7 +388,7 @@ for(i in 1: m){
   mvEWS[[namesEWS]][[i]] <- weightedSamples[i,]
   mvWS[[namesEWS]][[i]] <- unweightedSamples[i,]
 }
-
+}
 
   message("Returning the results")
   #list to return
@@ -335,7 +403,8 @@ for(i in 1: m){
                      ess = ESS,
                      #compiledParticleFilterEst = compiledParticleFilterEst,
                      mvWS = mvWS,
-                     mvEWS = mvEWS)
+                     mvEWS = mvEWS,
+                     mvSamplesEst = mvSamplesEst)
 
   return(returnList)
 }
@@ -355,7 +424,9 @@ spartaNimUpdates <- function(model, #nimbleModel
                              weightedLatentSamples,
                              unweightedLatentSamples,
                              loglike,
-                             postReducedMCMC
+                             postReducedMCMC,
+                             mvSamplesEst,
+                             target
 ){
   timeStart1 <- Sys.time()
   target = MCMCconfiguration[["target"]]
@@ -368,7 +439,7 @@ spartaNimUpdates <- function(model, #nimbleModel
   M = pfControl[["M"]]
   #iNodePrev = updatePFControl[["iNodePrev"]]
   #M = updatePFControl[["M"]]
-  if(is.null(nParFiltRun)) nParFiltRun = 10000
+  if(is.null(nParFiltRun)) nParFiltRun = n.burnin - n.iter
 
   inits <- as.list(target)
   names(inits) <- target
@@ -391,6 +462,8 @@ spartaNimUpdates <- function(model, #nimbleModel
                                                               mvWSamplesXSaved = unweightedLatentSamples,
                                                               mvEWSamplesXSaved = weightedLatentSamples,
                                                               logLikeVals = loglike,
+                                                              mvSamplesEst = mvSamplesEst,
+                                                              target = target,
                                                               control = pfControl)
 
     particleFilterEst <- myphdthesis::buildBootstrapFilterUpdate(estimationModel,
@@ -399,6 +472,8 @@ spartaNimUpdates <- function(model, #nimbleModel
                                                                  mvWSamplesXSaved = unweightedLatentSamples,
                                                                  mvEWSamplesXSaved = weightedLatentSamples,
                                                                  logLikeVals = loglike,
+                                                                 mvSamplesEst = mvSamplesEst,
+                                                                 target = target,
                                                                  control = pfControl)
   }
 
@@ -408,34 +483,42 @@ spartaNimUpdates <- function(model, #nimbleModel
    if(pfType == "bootstrap"){
      particleFilter <- myphdthesis::buildBootstrapFilterUpdate(model,
                                                               latent,
+                                                              target = target,
                                                              mvWSamplesWTSaved = weights,
                                                               mvWSamplesXSaved = unweightedLatentSamples,
                                                               mvEWSamplesXSaved = weightedLatentSamples,
                                                               logLikeVals = loglike,
+                                                             mvSamplesEst = mvSamplesEst,
                                                               control = pfControl)
 
     particleFilterEst <- myphdthesis::buildBootstrapFilterUpdate(estimationModel,
                                                                     latent,
+                                                                 target = target,
                                                                     mvWSamplesWTSaved = weights,
                                                                     mvWSamplesXSaved = unweightedLatentSamples,
                                                                     mvEWSamplesXSaved = weightedLatentSamples,
                                                                     logLikeVals = loglike,
+                                                                 mvSamplesEst = mvSamplesEst,
                                                                     control = pfControl)
    }else{
      particleFilter <- myphdthesis::buildAuxiliaryFilterUpdate(model,
                                                                latent,
+                                                               target = target,
                                                                mvWSamplesWTSaved = weights,
                                                                mvWSamplesXSaved = unweightedLatentSamples,
                                                                mvEWSamplesXSaved = weightedLatentSamples,
                                                                logLikeVals = loglike,
+                                                               mvSamplesEst = mvSamplesEst,
                                                                control = pfControl)
 
      particleFilterEst <- myphdthesis::buildAuxiliaryFilterUpdate(estimationModel,
                                                                   latent,
+                                                                  target = target,
                                                                   mvWSamplesWTSaved = weights,
                                                                   mvWSamplesXSaved = unweightedLatentSamples,
                                                                   mvEWSamplesXSaved = weightedLatentSamples,
                                                                   logLikeVals = loglike,
+                                                                  mvSamplesEst = mvSamplesEst,
                                                                   control = pfControl)
    }
    }
@@ -469,12 +552,14 @@ if(pfType == "bootstrap"){
   modelMCMCconf$addSampler(target = target,
                            type = 'RW_PF_blockUpdate',
                            control = list(latents = latent,
+                                          target = target,
                                           pfControl = list(saveAll = TRUE, M = M, iNodePrev = iNodePrev),
                                           pfNparticles = nParFiltRun,
                                           pfType = pfTypeUpdate,
                                           weights = weights,
                                           unweightedSamples= unweightedLatentSamples,
                                           weightedSamples = weightedLatentSamples,
+                                          mvSamplesEst = mvSamplesEst,
                                           logLikeVals = loglike))
 
   modelMCMCconf$addMonitors(additionalPars)

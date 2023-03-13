@@ -4,13 +4,13 @@ library(myphdthesis)
 set.seed(1)
 
 
-
+mvS <- modelValues(stateSpaceModel)
 
 #devtools::install_github("Peprah94/myphdthesis")
 
-load("~/Documents/GitHub/myphdthesis/case2SimData.RData")
-load("~/Documents/GitHub/myphdthesis/case2NormalMCMC.RData")
-load("~/Documents/GitHub/myphdthesis/reducedCase2.RData")
+load("~/Documents/GitHub/myphdthesis/example1BaselineSMC2.RData")
+load("~/Documents/GitHub/myphdthesis/example1SimData2.RData")
+load("~/Documents/GitHub/myphdthesis/example1ReducedIn45A2.RData")
 
 nIterations = 5
 nBurnin = 2

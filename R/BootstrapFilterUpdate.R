@@ -32,7 +32,8 @@ bootFStepUpdate <- nimbleFunction(
                    mvWSamplesXSaved,
                    mvEWSamplesXSaved,
                    logLikeVals,
-                   latent) {
+                   latent, target,
+                   mvSamplesEst) {
     notFirst <- iNode != 1
 
      #if(iNode == iNodePrev){
@@ -51,7 +52,7 @@ bootFStepUpdate <- nimbleFunction(
 
       prevNode <- nodes[if(notFirst) iNode-1 else iNode]
       thisNode <- nodes[iNode]
-
+      nTarget <- length(target)
     ## t is the current time point.
     t <- iNode
     ## Get names of xs node for current and previous time point (used in copy)
@@ -74,6 +75,9 @@ bootFStepUpdate <- nimbleFunction(
     }
     isLast <- (iNode == length(nodes))
     ess <- 0
+
+    #names of latent vars
+
 
     resamplerFunctionList <- nimbleFunctionList(resamplerVirtual)
     if(resamplingMethod == 'default'){
@@ -194,8 +198,14 @@ bootFStepUpdate <- nimbleFunction(
           #model$calculate(prevDeterm)
         }
 
-        copy(mvWSamplesXSaved, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
-        copy(mvEWSamplesXSaved, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
+        nimCopy(mvSamplesEst, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
+        nimCopy(mvSamplesEst, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
+        #copy(mvWSamplesXSaved, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
+        #copy(mvEWSamplesXSaved, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
+
+        #for(k in 1:nTarget){
+          nimCopy(from = mvSamplesEst, to = model, nodes = target[1],row = i)
+        #}
         #mvWSamples[latent,i][currInd] <<- mvWSamplesXSaved[i, currInd]
         #mvEWSamples[latent,i][currInd] <<- mvEWSamplesXSaved[i, currInd]
         mvWSamples['wts',i][currInd] <<- mvWSamplesWTSaved[i, currInd]
@@ -403,7 +413,7 @@ bootFStepUpdate <- nimbleFunction(
 buildBootstrapFilterUpdate <- nimbleFunction(
   name = 'buildBootstrapFilterUpdate',
   setup = function(model, nodes, mvWSamplesWTSaved,
-                   mvWSamplesXSaved, mvEWSamplesXSaved, logLikeVals, control = list()) {
+                   mvWSamplesXSaved, mvEWSamplesXSaved, logLikeVals, mvSamplesEst, target, control = list()) {
 
     #control list extraction
     thresh <- control[['thresh']]
@@ -493,7 +503,7 @@ buildBootstrapFilterUpdate <- nimbleFunction(
                                               silent,
                                               iNodePrev, mvWSamplesWTSaved,
                                               mvWSamplesXSaved, mvEWSamplesXSaved,
-                                              logLikeVals, latent)
+                                              logLikeVals, latent, target, mvSamplesEst)
     }
     essVals <- rep(0, length(nodes))
     lastLogLik <- -Inf
