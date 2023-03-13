@@ -6,7 +6,7 @@ set.seed(1)
 
 mvS <- modelValues(stateSpaceModel)
 
-#
+#devtools::install_github("Peprah94/myphdthesis")
 
 
 load("~/Documents/GitHub/myphdthesis/example1BaselineSMC2.RData")

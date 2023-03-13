@@ -198,13 +198,13 @@ bootFStepUpdate <- nimbleFunction(
           #model$calculate(prevDeterm)
         }
 
+        #copy(mvSamplesEst, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
+        #copy(mvSamplesEst, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
         copy(mvSamplesEst, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
         copy(mvSamplesEst, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
-        #copy(mvWSamplesXSaved, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
-        #copy(mvEWSamplesXSaved, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
 
         #for(k in 1:nTarget){
-          #copy(from = mvSamplesEst, to = model, nodes = target[1],row = i)
+          copy(from = mvSamplesEst, to = model, nodes = target,row = i)
         #}
         #mvWSamples[latent,i][currInd] <<- mvWSamplesXSaved[i, currInd]
         #mvEWSamples[latent,i][currInd] <<- mvEWSamplesXSaved[i, currInd]
@@ -213,6 +213,7 @@ bootFStepUpdate <- nimbleFunction(
 
         wts[i] <- mvWSamplesWTSaved[i, currInd]
       }
+      model$calculate(prevDeterm)
         out[1] <- logLikeVals[1, currInd]
         out[2] <- 0
         #model$simulate(calc_thisNode_self)

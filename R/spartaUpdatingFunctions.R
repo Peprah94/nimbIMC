@@ -388,6 +388,8 @@ for(i in 1: m){
   mvEWS[[namesEWS]][[i]] <- weightedSamples[i,]
   mvWS[[namesEWS]][[i]] <- unweightedSamples[i,]
 }
+
+mvSamplesEst <- mvEWS
 }
 
   message("Returning the results")
@@ -439,7 +441,7 @@ spartaNimUpdates <- function(model, #nimbleModel
   M = pfControl[["M"]]
   #iNodePrev = updatePFControl[["iNodePrev"]]
   #M = updatePFControl[["M"]]
-  if(is.null(nParFiltRun)) nParFiltRun = n.burnin - n.iter
+  if(is.null(nParFiltRun)) nParFiltRun =  n.iter - n.burnin
 
   inits <- as.list(target)
   names(inits) <- target
