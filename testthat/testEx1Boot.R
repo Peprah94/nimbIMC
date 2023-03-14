@@ -64,10 +64,10 @@ MCMCconfiguration = list(target = c('a', 'b', 'c', 'mu0'),
                          n.chains = nChains,
                          n.burnin = nBurnin,
                          n.thin = nThin)
-weights = reducedCase2$weights
-unweightedLatentSamples = reducedCase2$mvWS
-weightedLatentSamples = reducedCase2$mvEWS
-loglike = reducedCase2$logLike
+weights = example1ReducedModel$weights
+unweightedLatentSamples = example1ReducedModel$mvWS
+weightedLatentSamples = example1ReducedModel$mvEWS
+loglike = example1ReducedModel$logLike
 pfControl = list(saveAll = TRUE,
                  #lookahead = "mean",
                  smoothing = FALSE,
@@ -77,10 +77,20 @@ pfControl = list(saveAll = TRUE,
 pfType = NULL#Either 'auxiliary' or 'bootstrap'. Defaults to auxiliary
  #list of controls for particle filter
 nParFiltRun = NULL
-postReducedMCMC = reducedCase2$mcmcSamplesAndSummary
+postReducedMCMC = example1ReducedModel$mcmcSamplesAndSummary
+mvSamplesEst =  example1ReducedModel$mvSamplesEst
+control = pfControl
 
-
-
+mcmccontrol = list(latents = latent,
+               target = target,
+               pfControl = list(saveAll = TRUE, M = M, iNodePrev = iNodePrev),
+               pfNparticles = nParFiltRun,
+               pfType = "bootstrapUpdate",
+               weights = weights,
+               unweightedSamples= unweightedLatentSamples,
+               weightedSamples = weightedLatentSamples,
+               mvSamplesEst = mvSamplesEst,
+               logLikeVals = loglike)
 
 
 
