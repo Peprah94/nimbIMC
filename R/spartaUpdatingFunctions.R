@@ -452,15 +452,16 @@ logLike <- matrix(NA, nrow = m, ncol = length(latentNodes))
   # mvSamplesEst[[iter]] <- modelValues(modelValuesConf(vars = names,
   #                                             types = type,
   #                                             sizes = size))
-for(iter in 1:n.iter)
+for(iter in 1:n.iter){
   for(i in 1: m){
   for(j in 1:length(names)){
     mvSamplesEst[[names[j]]][[i]] <- mcmcOut[iter, model$expandNodeNames(names[j])]
     #nimCopy(from = mvSamplesEst, to = model, nodes = names[j],row = i)
   }
+  }
 
   for(k in 1:length(latentNodes)){
-    logLike[i,k] <- 0
+    logLike[,k] <- 0
   }
 }
 
