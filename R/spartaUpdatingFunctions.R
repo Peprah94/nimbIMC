@@ -448,11 +448,11 @@ size <- as.list(sapply(names, function(x)length(model$expandNodeNames(x))))
 ## this nimbleList definition is identical to the one created above
 #mvSamplesEst <- nimbleList(nimbleListTypes)
 logLike <- matrix(NA, nrow = m, ncol = length(latentNodes))
-for(iter in 1:n.iter){
+
   # mvSamplesEst[[iter]] <- modelValues(modelValuesConf(vars = names,
   #                                             types = type,
   #                                             sizes = size))
-
+for(iter in 1:n.iter)
   for(i in 1: m){
   for(j in 1:length(names)){
     mvSamplesEst[[names[j]]][[i]] <- mcmcOut[iter, model$expandNodeNames(names[j])]
@@ -463,7 +463,7 @@ for(iter in 1:n.iter){
     logLike[i,k] <- 0
   }
 }
-}
+
 
 #Model values for the weighted samples
 mvEWS <- mvWS <- mvSamplesEst
@@ -515,7 +515,7 @@ spartaNimUpdates <- function(model, #nimbleModel
                 mcmcOut = postReducedMCMC$samples$chain1,
                           latent = latent,
               target = target,
-              n.iter = nParFiltRun,
+              n.iter = n.iter - n.burnin,
               m = nParFiltRun,
               mcmc = TRUE)
 

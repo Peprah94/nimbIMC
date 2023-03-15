@@ -11,6 +11,8 @@ buildBootstrapFilterUpdate(
   mvWSamplesXSaved,
   mvEWSamplesXSaved,
   logLikeVals,
+  mvSamplesEst = list(),
+  target,
   control = list()
 )
 }

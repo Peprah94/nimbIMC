@@ -163,4 +163,37 @@ findLatentNodes <- function(model, nodes, timeIndex = NULL) {
     return(nodes)
 }
 
+mySetAndCalculate <- nimbleFunction(
+  name = 'mySetAndCalculate',
+  setup = function(model, targetNodes) {
+    targetNodesAsScalar <- model$expandNodeNames(targetNodes, returnScalarComponents = TRUE)
+    calcNodes <- model$getDependencies(targetNodes)
+  },
+  run = function(targetValues = double(1)) {
+    values(model, targetNodesAsScalar) <<- targetValues
+    lp <- model$calculate(calcNodes)
+    returnType(double())
+    return(lp)
+  }
+)
 
+mygenerateProposalVector = function(model, target) {
+  propValueVector <- values(model,target) ## last argument specifies prec_param = FALSE
+  #returnType(double(1))
+  return(propValueVector)
+}
+
+
+mygenerateProposalVector <- nimbleFunction(
+  name = 'mygenerateProposalVector',
+  setup = function(model, target) {
+    targetNodesAsScalar <- model$expandNodeNames(target, returnScalarComponents = TRUE)
+    #calcNodes <- model$getDependencies(targetNodes)
+  },
+  run = function(targetValues = double(1)) {
+    values(model, targetNodesAsScalar) <<- targetValues
+    #lp <- model$calculate(calcNodes)
+    returnType(double())
+    return(targetValues)
+  }
+)

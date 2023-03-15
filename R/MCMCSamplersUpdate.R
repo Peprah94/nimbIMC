@@ -152,7 +152,7 @@ sampler_RW_PFUpdate <- nimbleFunction(
     modelLP0 <- storeParticleLP + getLogProb(model, target)
     propValue <- rnorm(1, mean = model[[target]], sd = scale)
     my_setAndCalculate$run(propValue)
-    particleLP <- my_particleFilter$run(m)
+    particleLP <- my_particleFilter$run(m, iterRun = timesRan)
     modelLP1 <- particleLP + getLogProb(model, target)
     jump <- my_decideAndJump$run(modelLP1, modelLP0, 0, 0)
     if(!jump) {
@@ -193,7 +193,7 @@ sampler_RW_PFUpdate <- nimbleFunction(
       else {  # once enough var estimates have been taken, use their average to compute m
         m <<- m*storeLLVar/(0.92^2)
         m <<- ceiling(m)
-        storeParticleLP <<- my_particleFilter$run(m)
+        storeParticleLP <<- my_particleFilter$run(m, iterRun = timesRan)
         optimizeM <<- 0
       }
     },
@@ -207,13 +207,13 @@ sampler_RW_PFUpdate <- nimbleFunction(
         gamma2 <- 10 * gamma1
         adaptFactor <- exp(gamma2 * (acceptanceRate - optimalAR))
         scale <<- scale * adaptFactor
-        timesRan <<- 0
+        timesRan <<- 1
         timesAccepted <<- 0
       }
     },
     reset = function() {
       scale <<- scaleOriginal
-      timesRan      <<- 0
+      timesRan      <<- 1
       timesAccepted <<- 0
       timesAdapted  <<- 0
       #iterRun <<- 0
@@ -363,8 +363,8 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
     storeParticleLP <<- my_particleFilter$getLastLogLik()
     modelLP0 <- storeParticleLP + getLogProb(model, target)
     propValueVector <- generateProposalVector()
-    my_setAndCalculate$run(propValueVector)
     particleLP <- my_particleFilter$run(m = m, iterRun = timesRan)
+    my_setAndCalculate$run(propValueVector)
     modelLP1 <- particleLP + getLogProb(model, target)
     jump <- my_decideAndJump$run(modelLP1, modelLP0, 0, 0)
     if(!jump) {
@@ -406,7 +406,7 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
       else {  # once enough var estimates have been taken, use their average to compute m
         m <<- m*storeLLVar/(0.92^2)
         m <<- ceiling(m)
-        storeParticleLP <<- my_particleFilter$run(m)
+        storeParticleLP <<- my_particleFilter$run(m, iterRun = timesRan)
         optimizeM <<- 0
       }
     },
@@ -458,8 +458,7 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
 #' #######################################################################################
 #' ### RW_PF_block, does a block RW, but using a particle filter likelihood function #####
 #' #######################################################################################
-#' #' @rdname samplers
-#' #' @export
+
 #' sampler_RW_PF_blockUpdateMCMC <- nimbleFunction(
 #'   name = 'sampler_RW_PF_blockUpdateMCMC',
 #'   contains = sampler_BASE,

@@ -49,7 +49,7 @@ bootFStepUpdate <- nimbleFunction(
       calc_thisNode_self <- modelSteps$calc_thisNode_self
       calc_thisNode_deps <- modelSteps$calc_thisNode_deps
    # }
-
+      targetNodesAsScalar <- model$expandNodeNames(target, returnScalarComponents = TRUE)
       prevNode <- nodes[if(notFirst) iNode-1 else iNode]
       thisNode <- nodes[iNode]
       #nTarget <- length(target)
@@ -76,8 +76,17 @@ bootFStepUpdate <- nimbleFunction(
     isLast <- (iNode == length(nodes))
     ess <- 0
 
-    #names of latent vars
+    storeModelValues <- values(model, targetNodesAsScalar)
 
+    # type <- rep("double", length(target))
+    # size <- as.list(sapply(target, function(x)length(model$expandNodeNames(x))))
+    #
+    # newValues <- modelValues(modelValuesConf(vars = target,
+    #                                             types = type,
+    #                                             sizes = size))
+    # #resize(mvSamplesEst, m)
+    #names of latent vars
+    #my_setAndCalculate <- mySetAndCalculate(model, target)
 
     resamplerFunctionList <- nimbleFunctionList(resamplerVirtual)
     if(resamplingMethod == 'default'){
@@ -95,6 +104,7 @@ bootFStepUpdate <- nimbleFunction(
   },
   run = function(m = integer(),
                  iterRun = integer(),
+                 #targetValues = double(),
                  threshNum = double(),
                  prevSamp = logical()) {
     returnType(double(1))
@@ -105,6 +115,18 @@ bootFStepUpdate <- nimbleFunction(
     out <- numeric(2, init=FALSE)
 
     if(t > iNodePrev -1){
+      #nimble::values(model, targetNodesAsScalar) <<- targetValues
+      #my_setAndCalculate(targetValues)
+      #values(model, targetNodesAsScalar) <<- c(targetValues)
+      #for(j in 1:length(targetNodesAsScalar)){
+     # model[[targetNodesAsScalar[j]]] <- targetValues[j]
+      #}
+      #for(j in 1:length(target)){
+       # newValues[[target[j]]] <<- targetValues[j]
+        #nimCopy(from = mvSamplesEst, to = model, nodes = names[j],row = i)
+      #}
+      values(model, targetNodesAsScalar) <<- storeModelValues
+      #copy(from = newValues, to = model, nodes = target)
     for(i in 1:m) {
       if(notFirst) {
         if(smoothing == 1){
@@ -205,8 +227,8 @@ bootFStepUpdate <- nimbleFunction(
         copy(mvSamplesEst, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
 
         #for(k in 1:nTarget){
-          copy(from = mvSamplesEst, to = model, nodes = target,row = i, rowTo = i)
-          #model$calculate(prevDeterm)
+          copy(from = mvSamplesEst, to = model, nodes = target,row = iterRun)
+          model$calculate(prevDeterm)
         #}
         #mvWSamples[latent,i][currInd] <<- mvWSamplesXSaved[i, currInd]
         #mvEWSamples[latent,i][currInd] <<- mvEWSamplesXSaved[i, currInd]
@@ -329,6 +351,13 @@ bootFStepUpdate <- nimbleFunction(
       returnType(double(0))
       return(ess)
     }
+    # },
+    # generateProposalVector = function() {
+    #  # propValueVector <- targetValues  ## last argument specifies prec_param = FALSE
+    #   values(model, target) <<- targetValues
+    #   returnType(double(1))
+    #   return(propValueVector)
+    # }
   )
 )
 
@@ -517,13 +546,16 @@ buildBootstrapFilterUpdate <- nimbleFunction(
     #                                           mvWSamplesXSaved, mvEWSamplesXSaved,
     #                                           logLikeVals, latent, target, mvSamplesEst, iter)
     # }
+    #targetNodesAsScalar <- model$expandNodeNames(target, returnScalarComponents = TRUE)
+    #lTarget <- c(rep(0,length(targetNodesAsScalar))) #default target values
     essVals <- rep(0, length(nodes))
     lastLogLik <- -Inf
   },
-  run = function(m = integer(default = 10000), iterRun = integer(default = 1)) {
+  run = function(m = integer(default = 10000),
+                 iterRun = integer(default = 1)#,
+                # targetValues = double(default = lTarget)
+                 ) {
     returnType(double())
-
-
 
     if(initModel) my_initializeModel$run()
     resize(mvWSamples, m)
@@ -535,7 +567,7 @@ buildBootstrapFilterUpdate <- nimbleFunction(
     for(iNode in seq_along(bootStepFunctions)) {
       if(iNode == length(bootStepFunctions))
         threshNum <- m  ## always resample at last time step so mvEWsamples is equally-weighted
-      out <- bootStepFunctions[[iNode]]$run(m, iterRun,threshNum, prevSamp)
+      out <- bootStepFunctions[[iNode]]$run(m, iterRun, threshNum, prevSamp)
       logL <- logL + out[1]
       prevSamp <- out[2]
       essVals[iNode] <<- bootStepFunctions[[iNode]]$returnESS()
