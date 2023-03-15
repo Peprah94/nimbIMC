@@ -428,7 +428,7 @@ updateUtils <- function(model, #reduced model
 latentNodes <- model$expandNodeNames(latent)
 if(mcmc == TRUE){
 #save weight, weighted and unweighted samples
-weights <- matrix(1, nrow = m, ncol = length(latentNodes))
+weights <- matrix(1, nrow = n.iter, ncol = length(latentNodes))
 unweightedSamples <- mcmcOut[, latentNodes]
 weightedSamples <- mcmcOut[, latentNodes]
 
@@ -447,17 +447,17 @@ size <- as.list(sapply(names, function(x)length(model$expandNodeNames(x))))
 
 ## this nimbleList definition is identical to the one created above
 #mvSamplesEst <- nimbleList(nimbleListTypes)
-logLike <- matrix(NA, nrow = m, ncol = length(latentNodes))
+logLike <- matrix(NA, nrow = n.iter, ncol = length(latentNodes))
 
   # mvSamplesEst[[iter]] <- modelValues(modelValuesConf(vars = names,
   #                                             types = type,
   #                                             sizes = size))
 for(iter in 1:n.iter){
-  for(i in 1: m){
+  #for(i in 1: m){
   for(j in 1:length(names)){
-    mvSamplesEst[[names[j]]][[i]] <- mcmcOut[iter, model$expandNodeNames(names[j])]
+    mvSamplesEst[[names[j]]][[iter]] <- mcmcOut[iter, model$expandNodeNames(names[j])]
     #nimCopy(from = mvSamplesEst, to = model, nodes = names[j],row = i)
-  }
+  #}
   }
 
   for(k in 1:length(latentNodes)){
