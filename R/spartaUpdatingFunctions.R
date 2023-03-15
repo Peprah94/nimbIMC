@@ -509,14 +509,14 @@ spartaNimUpdates <- function(model, #nimbleModel
   M = pfControl[["M"]]
   #iNodePrev = updatePFControl[["iNodePrev"]]
   #M = updatePFControl[["M"]]
-  if(is.null(nParFiltRun)) nParFiltRun =  n.iter - n.burnin
+  if(is.null(nParFiltRun)) nParFiltRun =  n.iter
 
 
   updateVars <- updateUtils(reducedModel, #reduced model
                 mcmcOut = postReducedMCMC$samples$chain1,
                           latent = latent,
               target = target,
-              n.iter = n.iter - n.burnin,
+              n.iter = n.iter ,
               m = nParFiltRun,
               mcmc = TRUE)
 

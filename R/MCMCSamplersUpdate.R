@@ -363,8 +363,8 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
     storeParticleLP <<- my_particleFilter$getLastLogLik()
     modelLP0 <- storeParticleLP + getLogProb(model, target)
     propValueVector <- generateProposalVector()
-    particleLP <- my_particleFilter$run(m = m, iterRun = timesRan)
     my_setAndCalculate$run(propValueVector)
+    particleLP <- my_particleFilter$run(m = m, iterRun = timesRan)
     modelLP1 <- particleLP + getLogProb(model, target)
     jump <- my_decideAndJump$run(modelLP1, modelLP0, 0, 0)
     if(!jump) {
