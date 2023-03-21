@@ -112,7 +112,8 @@ baselineSpartaEstimation <- function(model, #nimbleModel
   #posteriorEstimates <- mcmc.out$summary$all.chains[target, 'Mean']
 expandTarget <- model$expandNodeNames(target)
   for(i in 1:length(expandTarget)){
-    estimationModel[[expandTarget[i]]] <- mcmc.out$summary$all.chains[expandTarget[i], 'Mean']
+    #estimationModel[[expandTarget[i]]] <- mcmc.out$summary$all.chains[expandTarget[i], 'Mean']
+    estimationModel[[expandTarget[i]]] <- mcmc.out$summary[expandTarget[i], 'Mean']
   }
 
   message("Compiling the estimation particle filter")
