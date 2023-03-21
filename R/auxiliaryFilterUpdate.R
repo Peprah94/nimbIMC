@@ -16,7 +16,7 @@
 ##  This version of the APF is based on
 ##  Pitt et al., 2012
 
-auxStepVirtual2 <- nimbleFunctionVirtual(
+auxStepVirtual2 <- nimble::nimbleFunctionVirtual(
   run = function(m = integer(),iterRun = integer(),storeModelValues = double(1)) {
     returnType(double())
   },
@@ -72,7 +72,6 @@ auxFStepUpdate <- nimbleFunction(
     last <- iNode == length(nodes)
     prevNode <- nodes[if(notFirst) iNode-1 else iNode]
 
-    notFirst <- iNode != 1
     modelSteps <- particleFilter_splitModelSteps(model, nodes, iNode, notFirst)
     prevDeterm <- modelSteps$prevDeterm
     calc_thisNode_self <- modelSteps$calc_thisNode_self
@@ -106,16 +105,16 @@ auxFStepUpdate <- nimbleFunction(
       prevInd <- 1
     }
 #iterRun <- 1
-    auxFuncList <- nimbleFunctionList(auxFuncVirtualUpdate )
+    auxFuncList <- nimbleFunctionList(auxFuncVirtual1 )
     allLatentNodes <- model$expandNodeNames(calc_thisNode_self, sort = TRUE) ## They should already be sorted, but sorting here is a failsafe.
     numLatentNodes <- length(allLatentNodes)
     if(lookahead == "mean"){
       for(i in 1:numLatentNodes)
-        auxFuncList[[i]] <- auxLookFuncUpdate(model, allLatentNodes[i])
+        auxFuncList[[i]] <- auxLookFunc1(model, allLatentNodes[i])
     }
     else{
       for(i in 1:numLatentNodes)
-        auxFuncList[[i]] <- auxSimFuncUpdate(model,  allLatentNodes)
+        auxFuncList[[i]] <- auxSimFunc1(model,  allLatentNodes)
     }
     ess <- 0
     resamplerFunctionList <- nimbleFunctionList(resamplerVirtual)
@@ -266,18 +265,18 @@ auxFStepUpdate <- nimbleFunction(
     #
     #copy(mvSamplesEst, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
     #copy(mvSamplesEst, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
-             copy(mvSamplesEst, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
-             copy(mvSamplesEst, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
+             nimCopy(mvSamplesEst, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
+             nimCopy(mvSamplesEst, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
     #
     #
     #         #if(t == 1){
     #         #  storeModelValues <<- values(model, targetNodesAsScalar)
     #         #}
     #         #for(k in 1:nTarget){
-             copy(from = mvSamplesEst, to = model, nodes = target,row = iterRun)
-             if(notFirst) {
-               model$calculate(prevDeterm)
-             }
+             nimCopy(from = mvSamplesEst, to = model, nodes = target,row = iterRun)
+             #if(notFirst) {
+              # model$calculate(prevDeterm)
+             #}
     #         # model$calculate(prevDeterm)
     #         #}
     #         #mvWSamples[latent,i][currInd] <<- mvWSamplesXSaved[i, currInd]
@@ -307,7 +306,7 @@ auxFStepUpdate <- nimbleFunction(
      }
   },
   methods = list(
-    returnESSUpd = function() {
+    returnESS = function() {
       returnType(double(0))
       return(ess)
     }
@@ -431,7 +430,7 @@ buildAuxiliaryFilterUpdate <- nimbleFunction(
            "stratified", or "residual". ')
 
     # target information
-    targetNodesAsScalar <- model$expandNodeNames(target, returnScalarComponents = TRUE)
+    #targetNodesAsScalar <- model$expandNodeNames(target, returnScalarComponents = TRUE)
 
     ## Latent state info.
     nodes <- findLatentNodes(model, nodes, timeIndex)
@@ -528,8 +527,7 @@ buildAuxiliaryFilterUpdate <- nimbleFunction(
     #}
 
 
-    names <- names[1]
-    auxStepFunctionsUpdate <- nimbleFunctionList(auxStepVirtual2)
+
     #for(iNode in 1:iNodePrev){
     #  auxStepFunctions1[[iNode]] <- cModel$auxStepFunctions[[iNode]]
     #}
@@ -540,7 +538,8 @@ buildAuxiliaryFilterUpdate <- nimbleFunction(
     #                                         smoothing, lookahead,
     #                                         resamplingMethod, silent, iNodePrev,mvWSamplesWTSaved,
     #                                         mvWSamplesXSaved, mvEWSamplesXSaved)
-
+    names <- names[1]
+    auxStepFunctionsUpdate <- nimbleFunctionList(auxStepVirtual2)
     for(iNode in seq_along(nodes))
       auxStepFunctionsUpdate[[iNode]] <- auxFStepUpdate(model, mvEWSamples, mvWSamples, nodes, iNode, names,
                                                    saveAll, smoothing, lookahead, resamplingMethod,
@@ -551,9 +550,9 @@ buildAuxiliaryFilterUpdate <- nimbleFunction(
                                                    target,
                                                    mvSamplesEst)
 
-
     essVals <- rep(0, length(nodes))
     lastLogLik <- -Inf
+    runTime <- 1
   },
   run = function(m = integer(default = 10000),
                  iterRun = integer(default = 1),
@@ -577,6 +576,7 @@ buildAuxiliaryFilterUpdate <- nimbleFunction(
       if(logL == Inf) {lastLogLik <<- -Inf; return(-Inf)}
     }
     lastLogLik <<- logL
+    runTime <<- iterRun + 1
    # essVals <<- rep(0.23, length(auxStepFunctionsUpdate))
     return(logL)
   },
@@ -587,8 +587,14 @@ buildAuxiliaryFilterUpdate <- nimbleFunction(
     },
     setLastLogLik = function(lll = double()) {
       lastLogLik <<- lll
-
-     },
+},
+getLastTimeRan = function() {
+  return(runTime)
+  returnType(integer())
+},
+setLastTimeRan = function(lll = double()) {
+  runTime <<- lll + 1
+},
     returnESS = function(){
        returnType(double(1))
        return(essVals)
