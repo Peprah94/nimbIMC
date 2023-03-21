@@ -97,7 +97,8 @@ sampler_RW_PFUpdate <- nimbleFunction(
     ## numeric value generation
     optimizeM       <- as.integer(optimizeM)
     scaleOriginal   <- scale
-    timesRan        <- 0
+    times <- 1
+    timesRan        <- 1
     timesAccepted   <- 0
     timesAdapted    <- 0
     prevLL          <- 0
@@ -124,7 +125,7 @@ sampler_RW_PFUpdate <- nimbleFunction(
         filterControl$saveAll <- FALSE
         filterControl$smoothing <- FALSE
       }
-      filterControl$initModel <- FALSE
+      filterControl$initModel <- TRUE
       if(is.character(filterType) && filterType == 'auxiliary') {
         my_particleFilter <- buildAuxiliaryFilter(model, latents,
                                                   control = filterControl)
@@ -147,14 +148,15 @@ sampler_RW_PFUpdate <- nimbleFunction(
     if(length(targetAsScalar) > 1)                      stop('more than one top-level target; cannot use RW_PF sampler, try RW_PF_block sampler')
   },
   run = function() {
-    #iterRun <<- iterRun + 1
+    #
     storeParticleLP <<- my_particleFilter$getLastLogLik()
     modelLP0 <- storeParticleLP + getLogProb(model, target)
     propValue <- rnorm(1, mean = model[[target]], sd = scale)
     my_setAndCalculate$run(propValue)
-    particleLP <- my_particleFilter$run(m, iterRun = timesRan)
+    particleLP <- my_particleFilter$run(m, iterRun = timesRan, storeModelValues = propValue)
     modelLP1 <- particleLP + getLogProb(model, target)
     jump <- my_decideAndJump$run(modelLP1, modelLP0, 0, 0)
+    #times <<- times + 1
     if(!jump) {
       my_particleFilter$setLastLogLik(storeParticleLP)
     }
@@ -179,7 +181,7 @@ sampler_RW_PFUpdate <- nimbleFunction(
       declare(LLEst, double(1, nVarReps))
       if(nVarEsts < mBurnIn) {  # checks whether we have enough var estimates to get good approximation
         for(i in 1:nVarReps)
-          LLEst[i] <- my_particleFilter$run(tempM, iterRun = timesRan)
+          LLEst[i] <- my_particleFilter$run(tempM, iterRun = 1)
         ## next, store average of var estimates
         if(nVarEsts == 1)
           storeLLVar <<- var(LLEst)/mBurnIn
@@ -193,7 +195,7 @@ sampler_RW_PFUpdate <- nimbleFunction(
       else {  # once enough var estimates have been taken, use their average to compute m
         m <<- m*storeLLVar/(0.92^2)
         m <<- ceiling(m)
-        storeParticleLP <<- my_particleFilter$run(m, iterRun = timesRan)
+        storeParticleLP <<- my_particleFilter$run(m, iterRun = 1)
         optimizeM <<- 0
       }
     },
@@ -207,13 +209,13 @@ sampler_RW_PFUpdate <- nimbleFunction(
         gamma2 <- 10 * gamma1
         adaptFactor <- exp(gamma2 * (acceptanceRate - optimalAR))
         scale <<- scale * adaptFactor
-        timesRan <<- 1
+        timesRan <<- 0
         timesAccepted <<- 0
       }
     },
     reset = function() {
       scale <<- scaleOriginal
-      timesRan      <<- 1
+      timesRan      <<- 0
       timesAccepted <<- 0
       timesAdapted  <<- 0
       #iterRun <<- 0
@@ -291,6 +293,7 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
     chol_propCov_scale <- scale * chol_propCov
     empirSamp <- matrix(0, nrow=adaptInterval, ncol=d)
     storeParticleLP <- -Inf
+    iterRan <- 0
     storeLLVar  <- 0
     nVarReps <- 7    ## number of LL estimates to compute to get each LL variance estimate for m optimization
     mBurnIn  <- 15   ## number of LL variance estimates to compute before deciding optimal m
@@ -319,7 +322,7 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
                                                         mvWSamplesWTSaved,
                                                         mvWSamplesXSaved,
                                                         mvEWSamplesXSaved,
-                                                        logLike,
+                                                        logLikeVals = logLike,
                                                         mvSamplesEst = mvSamplesEst,
                                                         target = target,
                                                         control = filterControl)
@@ -351,6 +354,8 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
                   nimbleFunction(...).')
     }
     particleMV <- my_particleFilter$mvEWSamples
+   # targetNodesAsScalar <- model$expandNodeNames(target, returnScalarComponents = TRUE)
+    #storeModelValues <- values(model, targetNodesAsScalar)
     ## checks
     if(!inherits(propCov, 'matrix'))                    stop('propCov must be a matrix\n')
     if(!inherits(propCov[1,1], 'numeric'))              stop('propCov matrix must be numeric\n')
@@ -360,11 +365,14 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
     if(any(target%in%model$expandNodeNames(latents)))   stop('PMCMC \'target\' argument cannot include latent states')
   },
   run = function() {
+    #iterRan <<- generateIterRun()
     storeParticleLP <<- my_particleFilter$getLastLogLik()
     modelLP0 <- storeParticleLP + getLogProb(model, target)
     propValueVector <- generateProposalVector()
     my_setAndCalculate$run(propValueVector)
-    particleLP <- my_particleFilter$run(m = m, iterRun = timesRan)
+    #storeModelValues <<- values(model, targetNodesAsScalar)
+    particleLP <- my_particleFilter$run(m = m, iterRun = timesRan, storeModelValues = propValueVector)
+  #  my_setAndCalculate$run(propValueVector)
     modelLP1 <- particleLP + getLogProb(model, target)
     jump <- my_decideAndJump$run(modelLP1, modelLP0, 0, 0)
     if(!jump) {
@@ -385,6 +393,10 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
     ##if(jump & !resample)  storeParticleLP <<- particleLP
     if(jump & optimizeM) optimM()
     if(adaptive)     adaptiveProcedure(jump)
+
+    my_particleFilter$setLastTimeRan(iterRan)
+    #generateIterRun()
+
   },
   methods = list(
     optimM = function() {
@@ -392,7 +404,7 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
       declare(LLEst, double(1, nVarReps))
       if(nVarEsts < mBurnIn) {  # checks whether we have enough var estimates to get good approximation
         for(i in 1:nVarReps)
-          LLEst[i] <- my_particleFilter$run(m = tempM, iterRun = timesRan)
+          LLEst[i] <- my_particleFilter$run(m = tempM, iterRun = 1, storeModelValues = values(model, target))
         ## next, store average of var estimates
         if(nVarEsts == 1)
           storeLLVar <<- var(LLEst)/mBurnIn
@@ -406,7 +418,7 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
       else {  # once enough var estimates have been taken, use their average to compute m
         m <<- m*storeLLVar/(0.92^2)
         m <<- ceiling(m)
-        storeParticleLP <<- my_particleFilter$run(m, iterRun = timesRan)
+        storeParticleLP <<- my_particleFilter$run(m, iterRun = 1, storeModelValues = values(model, target))
         optimizeM <<- 0
       }
     },
@@ -415,13 +427,17 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
       returnType(double(1))
       return(propValueVector)
     },
+    generateIterRun = function() {
+      iterRan <<- iterRan + 1 ## last argument specifies prec_param = FALSE
+     # returnType(integer(1))
+     # return(iterRan)
+      },
     adaptiveProcedure = function(jump = logical()) {
       timesRan <<- timesRan + 1
-      #iterRun <<- iterRun + 1
       if(jump)     timesAccepted <<- timesAccepted + 1
       if(!adaptScaleOnly)     empirSamp[timesRan, 1:d] <<- values(model, target)
-      if(timesRan %% adaptInterval == 0) {
-        acceptanceRate <- timesAccepted / timesRan
+      if((timesRan-1) %% adaptInterval == 0) {
+        acceptanceRate <- timesAccepted / (timesRan-1)
         timesAdapted <<- timesAdapted + 1
         adaptFactor <- my_calcAdaptationFactor$run(acceptanceRate)
         scale <<- scale * adaptFactor
@@ -429,12 +445,12 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
         if(!adaptScaleOnly) {
           gamma1 <- my_calcAdaptationFactor$getGamma1()
           for(i in 1:d)     empirSamp[, i] <<- empirSamp[, i] - mean(empirSamp[, i])
-          empirCov <- (t(empirSamp) %*% empirSamp) / (timesRan-1)
+          empirCov <- (t(empirSamp) %*% empirSamp) / (timesRan-2)
           propCov <<- propCov + gamma1 * (empirCov - propCov)
           chol_propCov <<- chol(propCov)
         }
         chol_propCov_scale <<- chol_propCov * scale
-        timesRan <<- 1
+       timesRan <<- 1
         #iterRun <<- 1
         timesAccepted <<- 0
       }
@@ -445,10 +461,10 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
       chol_propCov <<- chol(propCov)
       chol_propCov_scale <<- chol_propCov * scale
       storeParticleLP <<- -Inf
-      timesRan      <<- 1
+     timesRan      <<- 1
       timesAccepted <<- 0
       timesAdapted  <<- 0
-      #iterRun <<- 1
+      #iterRan <<- 1
       my_calcAdaptationFactor$reset()
     }
   )

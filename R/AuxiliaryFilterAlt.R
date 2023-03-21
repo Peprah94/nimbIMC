@@ -5,7 +5,7 @@
 ##  This version of the APF is based on
 ##  Pitt et al., 2012
 
-auxStepVirtual <- nimbleFunctionVirtual(
+auxStepVirtual1 <- nimbleFunctionVirtual(
   run = function(m = integer()) {
     returnType(double())
   },
@@ -16,15 +16,15 @@ auxStepVirtual <- nimbleFunctionVirtual(
   )
 )
 
-auxFuncVirtual <- nimbleFunctionVirtual(
+auxFuncVirtual1 <- nimbleFunctionVirtual(
   methods = list(
     lookahead = function(){}
   )
 )
 
-auxLookFunc = nimbleFunction(
-    name = 'auxLookFunc',
-  contains = auxFuncVirtual,
+auxLookFunc1 = nimbleFunction(
+    name = 'auxLookFunc1',
+  contains = auxFuncVirtual1,
   setup = function(model, node){
   },
   methods = list(
@@ -34,9 +34,9 @@ auxLookFunc = nimbleFunction(
 )
 
 
-auxSimFunc = nimbleFunction(
-    name = 'auxSimFunc',
-  contains = auxFuncVirtual,
+auxSimFunc1 = nimbleFunction(
+    name = 'auxSimFunc1',
+  contains = auxFuncVirtual1,
   setup = function(model, node){},
   methods = list(
     lookahead = function(){
@@ -46,7 +46,7 @@ auxSimFunc = nimbleFunction(
 
 auxFStepNew <- nimbleFunction(
     name = 'auxFStepNew',
-  contains = auxStepVirtual,
+  contains = auxStepVirtual1,
   setup = function(model, mvEWSamples, mvWSamples, nodes, iNode, names,
                    saveAll, smoothing, lookahead, resamplingMethod,
                    silent = TRUE) {
@@ -88,16 +88,16 @@ auxFStepNew <- nimbleFunction(
       prevInd <- 1
     }
 
-    auxFuncList <- nimbleFunctionList(auxFuncVirtual)
+    auxFuncList <- nimbleFunctionList(auxFuncVirtual1)
     allLatentNodes <- model$expandNodeNames(calc_thisNode_self, sort = TRUE) ## They should already be sorted, but sorting here is a failsafe.
     numLatentNodes <- length(allLatentNodes)
     if(lookahead == "mean"){
        for(i in 1:numLatentNodes)
-         auxFuncList[[i]] <- auxLookFunc(model, allLatentNodes[i])
+         auxFuncList[[i]] <- auxLookFunc1(model, allLatentNodes[i])
     }
     else{
       for(i in 1:numLatentNodes)
-        auxFuncList[[i]] <- auxSimFunc(model,  allLatentNodes)
+        auxFuncList[[i]] <- auxSimFunc1(model,  allLatentNodes)
     }
     ess <- 0
     resamplerFunctionList <- nimbleFunctionList(resamplerVirtual)
@@ -402,7 +402,7 @@ buildAuxiliaryFilterNew <- nimbleFunction(
     }
 
     names <- names[1]
-    auxStepFunctions <- nimbleFunctionList(auxStepVirtual)
+    auxStepFunctions <- nimbleFunctionList(auxStepVirtual1)
     for(iNode in seq_along(nodes))
       auxStepFunctions[[iNode]] <- auxFStepNew(model, mvEWSamples, mvWSamples,
                                             nodes, iNode, names, saveAll,

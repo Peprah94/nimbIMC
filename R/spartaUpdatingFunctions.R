@@ -331,76 +331,86 @@ timeEnd <- Sys.time()
 timetaken1 <- timeEnd - timeStart1
 timetaken2 <- timeEnd - timeStart2
 
-message(paste("Estimating weights at posteror values of ", target))
-#posteriorEstimates <- mcmc.out$summary$all.chains[target, 'Mean']
+ message(paste("Estimating effective sample size"))
+ if(n.chains > 1){
+ posteriorEstimates <- mcmc.out$summary$all.chains[target, 'Mean']
 
-expandTarget <- model$expandNodeNames(target)
-for(i in 1:length(expandTarget)){
-  estimationModel[[expandTarget[i]]] <- mcmc.out$summary$all.chains[expandTarget[i], 'Mean']
+ expandTarget <- model$expandNodeNames(target)
+ for(i in 1:length(expandTarget)){
+   estimationModel[[expandTarget[i]]] <- mcmc.out$summary$all.chains[expandTarget[i], 'Mean']
+ }
+ }else{
+   posteriorEstimates <- mcmc.out$summary[target, 'Mean']
+
+   expandTarget <- model$expandNodeNames(target)
+   for(i in 1:length(expandTarget)){
+     estimationModel[[expandTarget[i]]] <- mcmc.out$summary[expandTarget[i], 'Mean']
+   }
 }
+# message("Compiling the estimation particle filter")
+ #compiling the model
+ compiledParticleFilterEst <- compileNimble(estimationModel,  particleFilterEst)
+#
+# #Loglikelihood of last run and the Effective sample sizes
+ message("Running the estimation particle filter")
+ logLik <-   compiledParticleFilterEst$particleFilterEst$run(m = nParFiltRun)
+ ESS <-   compiledParticleFilterEst$particleFilterEst$returnESS()
+#
+#
+# #save weights and samples
+# message("Extracting the weights and samples from particle fiter")
+# weights <- as.matrix( compiledParticleFilterEst$particleFilterEst$mvWSamples, "wts")
+# unweightedSamples <- as.matrix( compiledParticleFilterEst$particleFilterEst$mvWSamples, latent)
+# weightedSamples <- as.matrix( compiledParticleFilterEst$particleFilterEst$mvEWSamples, latent)
+# if(pfType == "auxiliary"){
+#   logLike <- as.matrix( compiledParticleFilterEst$particleFilterEst$mvWSamples, "auxlog")
+# }else{
+#   logLike <- as.matrix( compiledParticleFilterEst$particleFilterEst$mvWSamples, "bootLL")
+# }
+#
+#
+# message("Saving unsampled and sampled values in model values for updating")
+# m = getsize(compiledParticleFilterEst$particleFilterEst$mvWSamples)
+# names <- compiledParticleFilterEst$particleFilterEst$mvWSamples$varNames
+# size <- compiledParticleFilterEst$particleFilterEst$mvWSamples$sizes
+# type <- c("double", "double", "double")
+#
+# if(pfType == "bootstrap"){
+# namesEWS <- names[!names %in% c("bootLL", "wts")]
+# }else{
+#   namesEWS <- names[!names %in% c("bootLL", "auxlog")]
+# }
+# index <- which(names == namesEWS)
+# mvEWS <- modelValues(modelValuesConf(vars = namesEWS,
+#                                      types = type[index],
+#                                      sizes = size[index]))
+# if(smoothing){
+#   size$wts <- 1
+#   size$bootLL <- 1
+# }
+# mvWS  <- modelValues(modelValuesConf(vars = names,
+#                                      types = type,
+#                                      sizes = size))
+#
+# resize(mvWS, m)
+# resize(mvEWS, m)
+#
+# for(i in 1: m){
+#   mvEWS[[namesEWS]][[i]] <- weightedSamples[i,]
+#   mvWS[[namesEWS]][[i]] <- unweightedSamples[i,]
+# }
+#
+# mvSamplesEst <- mvEWS
 
-message("Compiling the estimation particle filter")
-#compiling the model
-compiledParticleFilterEst <- compileNimble(estimationModel,  particleFilterEst)
-
-#Loglikelihood of last run and the Effective sample sizes
-message("Running the estimation particle filter")
-logLik <-   compiledParticleFilterEst$particleFilterEst$run(m = nParFiltRun)
-ESS <-   compiledParticleFilterEst$particleFilterEst$returnESS()
-
-
-#save weights and samples
-message("Extracting the weights and samples from particle fiter")
-weights <- as.matrix( compiledParticleFilterEst$particleFilterEst$mvWSamples, "wts")
-unweightedSamples <- as.matrix( compiledParticleFilterEst$particleFilterEst$mvWSamples, latent)
-weightedSamples <- as.matrix( compiledParticleFilterEst$particleFilterEst$mvEWSamples, latent)
-if(pfType == "auxiliary"){
-  logLike <- as.matrix( compiledParticleFilterEst$particleFilterEst$mvWSamples, "auxlog")
-}else{
-  logLike <- as.matrix( compiledParticleFilterEst$particleFilterEst$mvWSamples, "bootLL")
-}
-
-
-message("Saving unsampled and sampled values in model values for updating")
-m = getsize(compiledParticleFilterEst$particleFilterEst$mvWSamples)
-names <- compiledParticleFilterEst$particleFilterEst$mvWSamples$varNames
-size <- compiledParticleFilterEst$particleFilterEst$mvWSamples$sizes
-type <- c("double", "double", "double")
-
-if(pfType == "bootstrap"){
-namesEWS <- names[!names %in% c("bootLL", "wts")]
-}else{
-  namesEWS <- names[!names %in% c("bootLL", "auxlog")]
-}
-index <- which(names == namesEWS)
-mvEWS <- modelValues(modelValuesConf(vars = namesEWS,
-                                     types = type[index],
-                                     sizes = size[index]))
-if(smoothing){
-  size$wts <- 1
-  size$bootLL <- 1
-}
-mvWS  <- modelValues(modelValuesConf(vars = names,
-                                     types = type,
-                                     sizes = size))
-
-resize(mvWS, m)
-resize(mvEWS, m)
-
-for(i in 1: m){
-  mvEWS[[namesEWS]][[i]] <- weightedSamples[i,]
-  mvWS[[namesEWS]][[i]] <- unweightedSamples[i,]
-}
-
-mvSamplesEst <- mvEWS
+ mvEWS <- mvWS <- mvSamplesEst <- NULL
 }
 
   message("Returning the results")
   #list to return
-  returnList <- list(weights = weights,
-                     logLike = logLike,
-                     unweightedSamples = unweightedSamples,
-                     weightedSamples = weightedSamples,
+  returnList <- list(#weights = weights,
+                     #logLike = logLike,
+                     #unweightedSamples = unweightedSamples,
+                     #weightedSamples = weightedSamples,
                      particleFilter = particleFilter,
                      mcmcSamplesAndSummary = mcmc.out,
                      timeTakenAll = timetaken1,
@@ -422,11 +432,11 @@ mvSamplesEst <- mvEWS
 #message("Extracting the weights and samples from particle fiter")
 
 updateUtils <- function(model, #reduced model
-                        mcmcOut = mcmc.out$samples$chain1,
-                        latent, target, n.iter, m, mcmc = TRUE){
+                        mcmcOut,
+                        latent, target, n.iter, m){
 
 latentNodes <- model$expandNodeNames(latent)
-if(mcmc == TRUE){
+#if(mcmc == TRUE){
 #save weight, weighted and unweighted samples
 weights <- matrix(1, nrow = n.iter, ncol = length(latentNodes))
 unweightedSamples <- mcmcOut[, latentNodes]
@@ -441,7 +451,7 @@ size <- as.list(sapply(names, function(x)length(model$expandNodeNames(x))))
  mvSamplesEst <- modelValues(modelValuesConf(vars = names,
                                             types = type,
                                              sizes = size))
- resize(mvSamplesEst, m)
+ resize(mvSamplesEst, n.iter)
 #mvSamplesEst <- nimbleList(type = double())
 #nimbleListTypes <- list(nimbleType(name = 'est', type = 'character'))
 
@@ -468,9 +478,9 @@ for(iter in 1:n.iter){
 
 #Model values for the weighted samples
 mvEWS <- mvWS <- mvSamplesEst
-}else{
-  mvEWS <- mvWS <- mvSamplesEst < NA
-}
+#}else{
+#  mvEWS <- mvWS <- mvSamplesEst < NA
+#}
 
 returnlist = list(weights = weights,
   logLike = logLike,
@@ -509,16 +519,16 @@ spartaNimUpdates <- function(model, #nimbleModel
   M = pfControl[["M"]]
   #iNodePrev = updatePFControl[["iNodePrev"]]
   #M = updatePFControl[["M"]]
-  if(is.null(nParFiltRun)) nParFiltRun =  n.iter
+  if(is.null(nParFiltRun)) nParFiltRun = 10000
 
 
   updateVars <- updateUtils(reducedModel, #reduced model
-                mcmcOut = postReducedMCMC$samples$chain1,
+                #mcmcOut = postReducedMCMC$samples$chain1,
+                mcmcOut = postReducedMCMC$samples,
                           latent = latent,
               target = target,
               n.iter = n.iter ,
-              m = nParFiltRun,
-              mcmc = TRUE)
+              m = nParFiltRun)
 
 
   weights = updateVars$weights #weights from reduced model
@@ -527,14 +537,14 @@ spartaNimUpdates <- function(model, #nimbleModel
   loglike = updateVars$logLike  #saved loglikelihoods from reduced model
   mvSamplesEst =  updateVars$mvSamplesEst
 
-  inits <- as.list(target)
-  names(inits) <- target
-  for(i in 1:length(target)){
-    expandTarget <- model$expandNodeNames(target[i])
-    inits[[target[i]]] <- c(postReducedMCMC$summary$all.chains[expandTarget, 'Mean'])
-  }
+   inits <- as.list(target)
+   names(inits) <- target
+   for(i in 1:length(target)){
+     expandTarget <- model$expandNodeNames(target[i])
+     inits[[target[i]]] <- c(postReducedMCMC$summary[expandTarget, 'Mean'])
+   }
 
-  model$setInits(inits)
+   model$setInits(inits)
 
   #create new model for weights
   estimationModel <- model$newModel(replicate = TRUE)
@@ -588,7 +598,7 @@ spartaNimUpdates <- function(model, #nimbleModel
                                                                     control = pfControl)
    }else{
      particleFilter <- myphdthesis::buildAuxiliaryFilterUpdate(model,
-                                                               latent,
+                                                              latent,
                                                                target = target,
                                                                mvWSamplesWTSaved = weights,
                                                                mvWSamplesXSaved = unweightedLatentSamples,
@@ -611,11 +621,12 @@ spartaNimUpdates <- function(model, #nimbleModel
 
   message("Compiling the particle filter")
   #compiling the model
-  compiledParticleFilter <- nimble::compileNimble(model,  particleFilter)
+  compiledParticleFilter <- nimble::compileNimble(model,  particleFilter, showCompilerOutput = FALSE, resetFunctions = FALSE)
 
   #Log likelihood of last run and the Effective sample sizes
   message("Running the particle filter")
-  logLik <-   compiledParticleFilter$particleFilter$run(m = nParFiltRun)
+  vals <- c(rep(0, length(model$expandNodeNames(target, returnScalarComponents = TRUE))))
+  logLik <-   compiledParticleFilter$particleFilter$run(m = nParFiltRun, iterRun = 1, storeModelValues =  vals)
   ESS <-   compiledParticleFilter$particleFilter$returnESS()
 
   message("Setting up the MCMC Configuration")
@@ -639,6 +650,7 @@ if(pfType == "bootstrap"){
                            type = 'RW_PF_blockUpdate',
                            control = list(latents = latent,
                                           target = target,
+                                          adaptInterval = n.iter,
                                           pfControl = list(saveAll = TRUE, M = M, iNodePrev = iNodePrev),
                                           pfNparticles = nParFiltRun,
                                           pfType = pfTypeUpdate,
@@ -678,45 +690,47 @@ if(pfType == "bootstrap"){
   message(paste("Estimating weights at posteror values of ", target))
   #posteriorEstimates <- mcmc.out$summary$all.chains[target, 'Mean']
 
-  expandTarget <- model$expandNodeNames(target)
-  for(i in 1:length(expandTarget)){
-    estimationModel[[expandTarget[i]]] <- mcmc.out$summary$all.chains[expandTarget[i], 'Mean']
-  }
-
-  message("Compiling the estimation particle filter")
-  #compiling the model
-  compiledParticleFilterEst <- compileNimble(estimationModel,  particleFilterEst)
-
-  #Loglikelihood of last run and the Effective sample sizes
-  message("Running the estimation particle filter")
-  logLik <-   compiledParticleFilterEst$particleFilterEst$run(m = nParFiltRun)
-  ESS <-   compiledParticleFilterEst$particleFilterEst$returnESS()
-
-
-  #save weights and samples
-  message("Extracting the weights and samples from posterior particle fiter")
-  if(is.null(pfType)) pfType = "bootstrap"
-  weights <- as.matrix(compiledParticleFilterEst$particleFilterEst$mvWSamples, "wts")
-  unweightedSamples <- as.matrix(compiledParticleFilterEst$particleFilterEst$mvWSamples, latent)
-  weightedSamples <- as.matrix( compiledParticleFilterEst$particleFilterEst$mvEWSamples, latent)
-  if(pfType == "auxiliary"){
-  logLike <- as.matrix(compiledParticleFilterEst$particleFilterEst$mvWSamples, "auxlog")
-  }else{
-    logLike <- as.matrix(compiledParticleFilterEst$particleFilterEst$mvWSamples, "bootLL")
-}
+#   expandTarget <- model$expandNodeNames(target)
+#   for(i in 1:length(expandTarget)){
+#     estimationModel[[expandTarget[i]]] <- mcmc.out$summary[expandTarget[i], 'Mean']
+#       #mcmc.out$summary$all.chains[expandTarget[i], 'Mean']
+#   }
+#
+#   message("Compiling the estimation particle filter")
+#   #compiling the model
+#   compiledParticleFilterEst <- compileNimble(estimationModel,  particleFilterEst)
+#
+#   #Loglikelihood of last run and the Effective sample sizes
+#   message("Running the estimation particle filter")
+#   vals <- nimble::values(estimationModel, estimationModel$expandNodeNames(target, returnScalarComponents = TRUE))
+#   logLik <-   compiledParticleFilterEst$particleFilterEst$run(m = nParFiltRun, storeModelValues = vals)
+#   ESS <-   compiledParticleFilterEst$particleFilterEst$returnESS()
+#
+#
+#   #save weights and samples
+#   message("Extracting the weights and samples from posterior particle fiter")
+#   if(is.null(pfType)) pfType = "bootstrap"
+#   weights <- as.matrix(compiledParticleFilterEst$particleFilterEst$mvWSamples, "wts")
+#   unweightedSamples <- as.matrix(compiledParticleFilterEst$particleFilterEst$mvWSamples, latent)
+#   weightedSamples <- as.matrix( compiledParticleFilterEst$particleFilterEst$mvEWSamples, latent)
+#   if(pfType == "auxiliary"){
+#   logLike <- as.matrix(compiledParticleFilterEst$particleFilterEst$mvWSamples, "auxlog")
+#   }else{
+#     logLike <- as.matrix(compiledParticleFilterEst$particleFilterEst$mvWSamples, "bootLL")
+# }
 
 
   message("Returning the results")
   #list to return
-  returnList <- list(weights = weights,
-                     unweightedSamples = unweightedSamples,
-                     weightedSamples = weightedSamples,
-                     logLike = loglike,
+  returnList <- list(weights = NA,
+                     unweightedSamples = NA,
+                     weightedSamples = NA,
+                     logLike = NA,
                      particleFilter = particleFilter,
                      mcmcSamplesAndSummary = mcmc.out,
                      timeTakenAll = timetaken1,
                      timeTakenRun = timetaken2,
-                     ess = ESS#,
+                     ess = NA#,
                      #compiledParticleFilterEst  = compiledParticleFilterEst
                      )
 
