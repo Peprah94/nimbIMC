@@ -49,4 +49,6 @@ Depends:
     nimble,
     INLA,
     nimbleSMC,
-    inlabru
+    inlabru,
+    mcmcse,
+    ggmcmc

@@ -133,19 +133,28 @@ expandTarget <- model$expandNodeNames(target)
   weightedSamples <- as.matrix( compiledParticleFilterEst$particleFilterEst$mvEWSamples, latent)
 
 
+  #message("Returning the results")
+
   message("Returning the results")
   #list to return
-  returnList <- list(weights = weights,
-                     logLike = NULL,
-                     unweightedSamples = unweightedSamples,
-                     weightedSamples = weightedSamples,
-                     particleFilter = particleFilter,
-                     mcmcSamplesAndSummary = mcmc.out,
-                     timeTakenAll = timetaken1,
-                     timeTakenRun = timetaken2,
-                     ess = ESS)
+  retList <- list()
+  retList$samples <- mcmc.out$samples
+  retList$summary <- mcmc.out$summary
+  retList$timeRun <-  timetaken2
+  return(retList)
 
-  return(returnList)
+  # #list to return
+  # returnList <- list(weights = weights,
+  #                    logLike = NULL,
+  #                    unweightedSamples = unweightedSamples,
+  #                    weightedSamples = weightedSamples,
+  #                    particleFilter = particleFilter,
+  #                    mcmcSamplesAndSummary = mcmc.out,
+  #                    timeTakenAll = timetaken1,
+  #                    timeTakenRun = timetaken2,
+  #                    ess = ESS)
+
+  #return(returnList)
 }
 
 
@@ -407,22 +416,29 @@ timetaken2 <- timeEnd - timeStart2
 }
 
   message("Returning the results")
+  # #list to return
+  # returnList <- list(#weights = weights,
+  #                    #logLike = logLike,
+  #                    #unweightedSamples = unweightedSamples,
+  #                    #weightedSamples = weightedSamples,
+  #                    particleFilter = particleFilter,
+  #                    mcmcSamplesAndSummary = mcmc.out,
+  #                    timeTakenAll = timetaken1,
+  #                    timeTakenRun = timetaken2,
+  #                    ess = ESS,
+  #                    #compiledParticleFilterEst = compiledParticleFilterEst,
+  #                    mvWS = mvWS,
+  #                    mvEWS = mvEWS,
+  #                    mvSamplesEst = mvSamplesEst)
+  #
+  # return(returnList)
+  message("Returning the results")
   #list to return
-  returnList <- list(#weights = weights,
-                     #logLike = logLike,
-                     #unweightedSamples = unweightedSamples,
-                     #weightedSamples = weightedSamples,
-                     particleFilter = particleFilter,
-                     mcmcSamplesAndSummary = mcmc.out,
-                     timeTakenAll = timetaken1,
-                     timeTakenRun = timetaken2,
-                     ess = ESS,
-                     #compiledParticleFilterEst = compiledParticleFilterEst,
-                     mvWS = mvWS,
-                     mvEWS = mvEWS,
-                     mvSamplesEst = mvSamplesEst)
-
-  return(returnList)
+  retList <- list()
+  retList$samples <- mcmc.out$samples
+  retList$summary <- mcmc.out$summary
+  retList$timeRun <-  timetaken2
+  return(retList)
 }
 
 

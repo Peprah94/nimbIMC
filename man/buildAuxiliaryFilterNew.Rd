@@ -86,7 +86,8 @@ Pitt, M.K., and Shephard, N. (1999). Filtering via simulation: Auxiliary particl
 Other particle filtering methods: 
 \code{\link{buildAuxiliaryFilterUpdate}},
 \code{\link{buildBootstrapFilterNew}},
-\code{\link{buildBootstrapFilterUpdate}}
+\code{\link{buildBootstrapFilterUpdate}},
+\code{\link{compareModelsPars}()}
 }
 \author{
 Nicholas Michaud
