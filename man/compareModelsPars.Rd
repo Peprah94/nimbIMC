@@ -6,7 +6,10 @@
 \usage{
 compareModelsPars(
   models = list(),
-  metrics = list(timeRun = TRUE, ESS = TRUE, efficiency = TRUE)
+  n.chains = NULL,
+  modelNames = NULL,
+  method = "bm",
+  metrics = list(timeRun = TRUE, ESS = TRUE, efficiency = TRUE, MCse = TRUE)
 )
 }
 \arguments{

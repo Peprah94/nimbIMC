@@ -304,23 +304,71 @@ if(is.null(modelNames)) modelNames = paste("Model", 1:modelsLength)
 
     return(ret)
   })
-
-  if(ESS) ESSret <- lapply(models, function(x){
+names(MCseRet) <- modelNames
+  #############
+  # Effective sample Size
+  ##############
+  if(ESS) ESSret <- MCseRet <- lapply(seq_along(models), function(i){
+    x <- models[[i]]
     nDim <- length(x$samples[[1]])
-    if(nDim > 2){
-        ret <- coda::effectiveSize(x$samples[,nodes])
+    if(nDim >2 ){
+      ret <- lapply(as.list(1:n.chains), function(y){seEst <- mcmcse::mcse.mat(as.matrix(x$samples[[y]][,nodes]),
+                                                                               method = "bm",
+                                                                               g = NULL)%>%
+        as.data.frame()%>%
+        dplyr::select(se)
+      colnames(seEst) <- modelNames[i]
+      return(seEst)
+      })
+
+      names(ret) <- chainNames
+
+      ret$all.chains <- do.call("cbind", ret)%>%
+        rowMeans(.)
     }else{
-      ret <- coda::effectiveSize(x$samples[[2]][,nodes])
+      ret <- lapply(as.list(1:n.chains), function(y){seEst <- mcmcse::mcse.mat(as.matrix(x$samples[[y]][[2]][,nodes]),
+                                                                               method = "bm",
+                                                                               g = NULL)%>%
+        as.data.frame()%>%
+        dplyr::select(se)
+      colnames(seEst) <- modelNames[i]
+      return(seEst)
+      })
+
+      names(ret) <- chainNames
+
+      ret$all.chains <- do.call("cbind", ret)%>%
+        rowMeans(.)
     }
-  })%>%
-    do.call('c', .)
 
-  ggmcmc::ggs_effective(ggs(x$samples))
+    return(ret)
+  })
 
-  if(efficiency) efficiencyRet <- ESSret/timesRet
 
-  retDataFrame <- data.frame(timesRun = timesRet,
-                             ess = ESSret,
-                             efficiency = efficiencyRet)
-  return(retDataFrame)
+
+
+    ESSret <- lapply(models, function(x) {ggmcmc::ggs_effective(ggs(x$samples),
+                        proportion = FALSE,
+                        plot =  FALSE)%>%
+   dplyr::filter(Parameter %in% nodes)
+    })
+
+  #############
+  # Efficiency
+  ##############
+  if(efficiency) efficiencyRet <- lapply(seq_along(models), function(i){
+    ESSret[[i]]%>%
+      dplyr::mutate(timeRan = as.numeric(timesRet[i]),
+                    efficiency = Effective/ as.numeric(timesRet[i]),
+                    mcse = MCseRet[[i]]$all.chains)
+  })
+  names(efficiencyRet) <- modelNames
+
+  # Results to return
+retlist <- list()
+retlist$efficiency <- efficiencyRet
+retlist$timeRun <- timesRet
+retlist$mcse <- MCseRet
+
+  return(retlist)
 }
