@@ -527,7 +527,7 @@ MCseRet <- lapply(seq_along(models), function(i){
 
 
 
-  ESSret <- lapply(models, function(x) {ggmcmc::ggs_effective(ggs(x$samples),
+  ESSret <- lapply(models, function(x) {ggmcmc::ggs_effective(ggmcmc::ggs(x$samples),
                                                               proportion = FALSE,
                                                               plot =  FALSE)%>%
       dplyr::filter(Parameter %in% nodes)
@@ -548,15 +548,18 @@ efficiencyRet <- lapply(seq_along(models), function(i){
   ####################
   # Plot results
   ###################
-  if(efficiency) tableForPlots <- efficiencyRet%>%
+
+  modelNamesPlots <- rep(modelNames, each = length(nodes))
+  efficiencyPlot <- efficiencyRet%>%
     do.call("rbind", .)%>%
-    mutate(model = rep(1:2, each = length(nodes)))%>%
-    ggplot2::ggplot()+
-    geom_point(mapping = aes(x = Parameter,
-                             y = efficiency,
-                             group = model,
-                             col = as.factor(model)))+
-    geom_line(col = as.factor(model))
+    mutate(model = modelNamesPlots)%>%
+    ggplot2::ggplot(mapping = aes(x = Parameter,
+                                  y = efficiency,
+                                  group = model,
+                                  col = as.factor(model)))+
+    geom_point()+
+    geom_line()+
+    theme_bw()
 
   # Results to return
   retlist <- list()
