@@ -308,7 +308,148 @@ names(MCseRet) <- modelNames
   #############
   # Effective sample Size
   ##############
-  if(ESS) ESSret <- MCseRet <- lapply(seq_along(models), function(i){
+  # if(ESS) ESSret <- MCseRet <- lapply(seq_along(models), function(i){
+  #   x <- models[[i]]
+  #   nDim <- length(x$samples[[1]])
+  #   if(nDim >2 ){
+  #     ret <- lapply(as.list(1:n.chains), function(y){seEst <- mcmcse::mcse.mat(as.matrix(x$samples[[y]][,nodes]),
+  #                                                                              method = "bm",
+  #                                                                              g = NULL)%>%
+  #       as.data.frame()%>%
+  #       dplyr::select(se)
+  #     colnames(seEst) <- modelNames[i]
+  #     return(seEst)
+  #     })
+  #
+  #     names(ret) <- chainNames
+  #
+  #     ret$all.chains <- do.call("cbind", ret)%>%
+  #       rowMeans(.)
+  #   }else{
+  #     ret <- lapply(as.list(1:n.chains), function(y){seEst <- mcmcse::mcse.mat(as.matrix(x$samples[[y]][[2]][,nodes]),
+  #                                                                              method = "bm",
+  #                                                                              g = NULL)%>%
+  #       as.data.frame()%>%
+  #       dplyr::select(se)
+  #     colnames(seEst) <- modelNames[i]
+  #     return(seEst)
+  #     })
+  #
+  #     names(ret) <- chainNames
+  #
+  #     ret$all.chains <- do.call("cbind", ret)%>%
+  #       rowMeans(.)
+  #   }
+  #
+  #   return(ret)
+  # })
+
+
+
+
+    ESSret <- lapply(models, function(x) {ggmcmc::ggs_effective(ggs(x$samples),
+                        proportion = FALSE,
+                        plot =  FALSE)%>%
+   dplyr::filter(Parameter %in% nodes)
+    })
+
+  #############
+  # Efficiency
+  ##############
+  if(efficiency) efficiencyRet <- lapply(seq_along(models), function(i){
+    ESSret[[i]]%>%
+      dplyr::mutate(timeRan = as.numeric(timesRet[i]),
+                    efficiency = Effective/ as.numeric(timesRet[i]),
+                    mcse = MCseRet[[i]]$all.chains)
+  })
+  names(efficiencyRet) <- modelNames
+
+  # Results to return
+retlist <- list()
+retlist$efficiency <- efficiencyRet
+retlist$timeRun <- timesRet
+retlist$mcse <- MCseRet
+
+  return(retlist)
+}
+
+
+#' Create an auxiliary particle filter algorithm to estimate log-likelihood.
+#'
+#' @description Returns Monte Carlo Standard error, effective sample size and efficiency of individual parameters
+#'
+#' @param models A list of MCMC models we are interested in returning results for
+#' @param nodes A vector name of nodes we are interested in returning results for
+#' @param method  The method to use for estimating the Monte Carlo standard error. For details, check the vignette of mcmcse package.
+#' @author  Kwaku Peprah Adjei
+#' @export
+#'
+#' @family updating particle filters
+#' @references Pitt, M.K., and Shephard, N. (1999). Filtering via simulation: Auxiliary particle filters. \emph{Journal of the American Statistical Association} 94(446): 590-599.
+#'
+#' @examples
+#' ## For illustration only.
+#' exampleCode <- nimbleCode({
+#'   x0 ~ dnorm(0, var = 1)
+#'   x[1] ~ dnorm(.8 * x0, var = 1)
+#'   y[1] ~ dnorm(x[1], var = .5)
+#'   for(t in 2:10){
+#'     x[t] ~ dnorm(.8 * x[t-1], var = 1)
+#'     y[t] ~ dnorm(x[t], var = .5)
+#'   }
+#' })
+#'
+#' model <- nimbleModel(code = exampleCode, data = list(y = rnorm(10)),
+#'                      inits = list(x0 = 0, x = rnorm(10)))
+#' my_AuxF <- buildAuxiliaryFilter(model, 'x',
+#'                 control = list(saveAll = TRUE, lookahead = 'mean'))
+#' ## Now compile and run, e.g.,
+#' ## Cmodel <- compileNimble(model)
+#' ## Cmy_AuxF <- compileNimble(my_AuxF, project = model)
+#' ## logLik <- Cmy_AuxF$run(m = 1000)
+#' ## ESS <- Cmy_AuxF$returnESS()
+#' ## aux_X <- as.matrix(Cmy_AuxF$mvEWSamples, 'x')
+
+compareModelsPlots <- function(models = list(),
+                                modelNames = NULL,
+                                  n.chains = NULL,
+                                  nodes = c(),
+                                  method = "bm", #parameterisations for mcse.mat
+                                  metrics = list(ESS = TRUE,
+                                                       efficiency = TRUE,
+                                                       MCse = TRUE,
+                                                       traceplot = TRUE)){
+
+  ESS <- metrics[["ESS"]]
+  efficiency <- metrics[["efficiency"]]
+  MCse = metrics[["MCse"]]
+
+  #assign names for models
+  modelsLength <- length(models)
+  if(is.null(modelNames)) modelNames = paste("Model", 1:modelsLength)
+
+  #assign default number of chains
+  if(is.null(n.chains)) n.chains = 1
+
+  #assign chain names
+  chainNames <- paste0("chain", 1:n.chains)
+
+  ##################
+  # Times run
+  ############
+timesRet <- lapply(models, function(x){
+    nDim <- length(x$timeRun)
+    if(nDim == 1){
+      x$timeRun
+    }else{
+      x$timeRun$all.chains
+    }
+  })%>%
+    do.call('c', .)
+  ####################
+  # estimate Monte Carlo Standard error
+  ##################
+MCseRet <- lapply(seq_along(models), function(i){
     x <- models[[i]]
     nDim <- length(x$samples[[1]])
     if(nDim >2 ){
@@ -343,20 +484,59 @@ names(MCseRet) <- modelNames
 
     return(ret)
   })
+  names(MCseRet) <- modelNames
+  #############
+  # Effective sample Size
+  ##############
+  # if(ESS) ESSret <- MCseRet <- lapply(seq_along(models), function(i){
+  #   x <- models[[i]]
+  #   nDim <- length(x$samples[[1]])
+  #   if(nDim >2 ){
+  #     ret <- lapply(as.list(1:n.chains), function(y){seEst <- mcmcse::mcse.mat(as.matrix(x$samples[[y]][,nodes]),
+  #                                                                              method = "bm",
+  #                                                                              g = NULL)%>%
+  #       as.data.frame()%>%
+  #       dplyr::select(se)
+  #     colnames(seEst) <- modelNames[i]
+  #     return(seEst)
+  #     })
+  #
+  #     names(ret) <- chainNames
+  #
+  #     ret$all.chains <- do.call("cbind", ret)%>%
+  #       rowMeans(.)
+  #   }else{
+  #     ret <- lapply(as.list(1:n.chains), function(y){seEst <- mcmcse::mcse.mat(as.matrix(x$samples[[y]][[2]][,nodes]),
+  #                                                                              method = "bm",
+  #                                                                              g = NULL)%>%
+  #       as.data.frame()%>%
+  #       dplyr::select(se)
+  #     colnames(seEst) <- modelNames[i]
+  #     return(seEst)
+  #     })
+  #
+  #     names(ret) <- chainNames
+  #
+  #     ret$all.chains <- do.call("cbind", ret)%>%
+  #       rowMeans(.)
+  #   }
+  #
+  #   return(ret)
+  # })
 
 
 
 
-    ESSret <- lapply(models, function(x) {ggmcmc::ggs_effective(ggs(x$samples),
-                        proportion = FALSE,
-                        plot =  FALSE)%>%
-   dplyr::filter(Parameter %in% nodes)
-    })
+  ESSret <- lapply(models, function(x) {ggmcmc::ggs_effective(ggs(x$samples),
+                                                              proportion = FALSE,
+                                                              plot =  FALSE)%>%
+      dplyr::filter(Parameter %in% nodes)
+  })
 
   #############
   # Efficiency
   ##############
-  if(efficiency) efficiencyRet <- lapply(seq_along(models), function(i){
+efficiencyRet <- lapply(seq_along(models), function(i){
     ESSret[[i]]%>%
       dplyr::mutate(timeRan = as.numeric(timesRet[i]),
                     efficiency = Effective/ as.numeric(timesRet[i]),
@@ -364,11 +544,27 @@ names(MCseRet) <- modelNames
   })
   names(efficiencyRet) <- modelNames
 
+
+  ####################
+  # Plot results
+  ###################
+  if(efficiency) tableForPlots <- efficiencyRet%>%
+    do.call("rbind", .)%>%
+    mutate(model = rep(1:2, each = length(nodes)))%>%
+    ggplot2::ggplot()+
+    geom_point(mapping = aes(x = Parameter,
+                             y = efficiency,
+                             group = model,
+                             col = as.factor(model)))+
+    geom_line(col = as.factor(model))
+
   # Results to return
-retlist <- list()
-retlist$efficiency <- efficiencyRet
-retlist$timeRun <- timesRet
-retlist$mcse <- MCseRet
+  retlist <- list()
+  retlist$efficiency <- efficiencyRet
+  retlist$timeRun <- timesRet
+  retlist$mcse <- MCseRet
 
   return(retlist)
+
+
 }
