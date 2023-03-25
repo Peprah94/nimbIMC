@@ -630,7 +630,7 @@ spartaNimUpdates <- function(model, #nimbleModel
   samplesList <- lapply(as.list(1:n.chains), function(chain.iter){
     timeStart1 <- Sys.time()
 
-    updateVars <- updateUtils(reducedModel, #reduced model
+    updateVars <- updateUtils(model = reducedModel, #reduced model
                 #mcmcOut = postReducedMCMC$samples$chain1,
                 mcmcOut = postReducedMCMC$samples[[chain.iter]],
                           latent = latent,
@@ -855,7 +855,7 @@ if(pfType == "bootstrap"){
   message("Returning the results")
   #list to return
   retList <- list()
-retList$samples <- samplesList
+retList$samples <- samplesList1
 retList$summary <- summaryObject
 retList$timeRun <- timetakenRun
   return(retList)

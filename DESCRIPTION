@@ -51,4 +51,5 @@ Depends:
     nimbleSMC,
     inlabru,
     mcmcse,
-    ggmcmc
+    ggmcmc,
+    dplyr
