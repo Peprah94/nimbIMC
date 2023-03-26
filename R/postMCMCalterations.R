@@ -418,11 +418,14 @@ compareModelsPlots <- function(models = list(),
                                   metrics = list(ESS = TRUE,
                                                        efficiency = TRUE,
                                                        MCse = TRUE,
-                                                       traceplot = TRUE)){
+                                                       traceplot = TRUE,
+                                                        density = TRUE)){
 
   ESS <- metrics[["ESS"]]
   efficiency <- metrics[["efficiency"]]
   MCse = metrics[["MCse"]]
+  traceplot = metrics[["traceplot"]]
+  density = metrics[["density"]]
 
   #assign names for models
   modelsLength <- length(models)
@@ -550,6 +553,7 @@ efficiencyRet <- lapply(seq_along(models), function(i){
   ###################
 
   modelNamesPlots <- rep(modelNames, each = length(nodes))
+
   efficiencyPlot <- efficiencyRet%>%
     do.call("rbind", .)%>%
     mutate(model = modelNamesPlots)%>%
@@ -559,15 +563,205 @@ efficiencyRet <- lapply(seq_along(models), function(i){
                                   col = as.factor(model)))+
     geom_point()+
     geom_line()+
-    theme_bw()
+    theme_bw()+
+    ylab("Efficiency = ESS/Run time")
+
+  effectivePlot <- efficiencyRet%>%
+    do.call("rbind", .)%>%
+    mutate(model = modelNamesPlots)%>%
+    ggplot2::ggplot(mapping = aes(x = Parameter,
+                                  y = Effective,
+                                  group = model,
+                                  col = as.factor(model)))+
+    geom_point()+
+    geom_line()+
+    theme_bw()+
+    ylab("Effective Sample Size (ESS)")
+
+  mcsePlot <- efficiencyRet%>%
+    do.call("rbind", .)%>%
+    mutate(model = modelNamesPlots)%>%
+    ggplot2::ggplot(mapping = aes(x = Parameter,
+                                  y = mcse,
+                                  group = model,
+                                  col = as.factor(model)))+
+    geom_point()+
+    geom_line()+
+    theme_bw()+
+    ylab("Monte Carlo standard error (MCSE)")
+
+
+  traceplotRet <- lapply(seq_along(models), function(i){
+    x <- models[[i]]
+    ggmcmc::ggs(x$samples)%>%
+      dplyr::filter(Parameter %in% nodes)%>%
+      ggs_traceplot()+
+      facet_wrap( ~ Parameter, nrow = ceiling(length(nodes)/4), ncol = 4, scales = "free_y")+
+      ggtitle(paste("Model ", i))+
+      theme_bw()
+  })%>%
+    ggpubr::ggarrange(plotlist = .,
+                      nrow = length(models),
+                      common.legend = TRUE)
+
+  densityplotRet <- lapply(seq_along(models), function(i){
+    x <- models[[i]]
+    ggmcmc::ggs(x$samples)%>%
+      dplyr::filter(Parameter %in% nodes)%>%
+      ggs_density()+
+      ggtitle(paste("Model ", i))+
+      facet_wrap( ~ Parameter, nrow = ceiling(length(nodes)/4), ncol = 4, scales = "free_y")+
+      theme_bw()
+  })%>%
+    ggpubr::ggarrange(plotlist = .,
+                      nrow = length(models),
+                      common.legend = TRUE)
 
   # Results to return
   retlist <- list()
-  retlist$efficiency <- efficiencyRet
-  retlist$timeRun <- timesRet
-  retlist$mcse <- MCseRet
+ if(efficiency) retlist$efficiencyPlot <- efficiencyPlot
+ if(ESS) retlist$essPlot <- effectivePlot
+ if(MCse) retlist$mcsePlot <- mcsePlot
+  if(traceplot) retlist$tracePlot <- traceplotRet
+  if(density) retlist$densityPlot <-   densityplotRet
 
   return(retlist)
 
+}
+
+
+#' Create an auxiliary particle filter algorithm to estimate log-likelihood.
+#'
+#' @description Returns Monte Carlo Standard error, effective sample size and efficiency of individual parameters
+#'
+#' @param models A list of MCMC models we are interested in returning results for
+#' @param nodes A vector name of nodes we are interested in returning results for
+#' @param method  The method to use for estimating the Monte Carlo standard error. For details, check the vignette of mcmcse package.
+#' @author  Kwaku Peprah Adjei
+#' @export
+#'
+#' @family updating particle filters
+#' @references Pitt, M.K., and Shephard, N. (1999). Filtering via simulation: Auxiliary particle filters. \emph{Journal of the American Statistical Association} 94(446): 590-599.
+#'
+#' @examples
+#' ## For illustration only.
+#' exampleCode <- nimbleCode({
+#'   x0 ~ dnorm(0, var = 1)
+#'   x[1] ~ dnorm(.8 * x0, var = 1)
+#'   y[1] ~ dnorm(x[1], var = .5)
+#'   for(t in 2:10){
+#'     x[t] ~ dnorm(.8 * x[t-1], var = 1)
+#'     y[t] ~ dnorm(x[t], var = .5)
+#'   }
+#' })
+#'
+#' model <- nimbleModel(code = exampleCode, data = list(y = rnorm(10)),
+#'                      inits = list(x0 = 0, x = rnorm(10)))
+#' my_AuxF <- buildAuxiliaryFilter(model, 'x',
+#'                 control = list(saveAll = TRUE, lookahead = 'mean'))
+#' ## Now compile and run, e.g.,
+#' ## Cmodel <- compileNimble(model)
+#' ## Cmy_AuxF <- compileNimble(my_AuxF, project = model)
+#' ## logLik <- Cmy_AuxF$run(m = 1000)
+#' ## ESS <- Cmy_AuxF$returnESS()
+#' ## aux_X <- as.matrix(Cmy_AuxF$mvEWSamples, 'x')
+
+compareModelsMeanPlots <- function(models = list(),
+                               modelNames = NULL,
+                               fullModel = stateSpaceModel,
+                               nodes = c(), #parameterisations for mcse.mat
+                               metrics = list(mean= TRUE,
+                                              se = TRUE,
+                                              confint = TRUE)){
+
+  mean <- metrics[["mean"]]
+  se <- metrics[["se"]]
+  confint <- metrics[["confint"]]
+
+ allData <-  lapply(models, function(x){
+    x$summary$all.chains
+  })
+
+
+ meanPlot <- lapply(seq_along(allData), function(i){
+   x <- allData[[i]]
+  output <-  x[grepl(nodes, rownames(x)),"Mean"]%>%
+  #outputDF <- data.frame(Parameters = names(grepl(nodes, rownames(x))),
+                         #output = output)
+     data.frame()%>%
+     dplyr::mutate(Parameters = rownames(x)[grepl(nodes, rownames(x))],
+                   model = rep(paste0("model", i), length(rownames(x)[grepl(nodes, rownames(x))])))%>%
+     dplyr::full_join(data.frame(Parameters = fullModel$expandNodeNames(nodes),
+                                 model = rep(paste0("model", i), length(fullModel$expandNodeNames(nodes)))),
+                      by = c("Parameters", "model"))
+  colnames(output)[1] <- "mean"
+  return(output)
+ })%>%
+   do.call("rbind", .)%>%
+   ggplot(., mapping = aes(x = as.factor(Parameters), y = mean, col = model, group = model))+
+   geom_point()+
+   geom_line()+
+   theme_bw()+
+   xlab("Parameters")
+
+ sePlot <- lapply(seq_along(allData), function(i){
+   x <- allData[[i]]
+   output <-  x[grepl(nodes, rownames(x)),c(1,3) ]%>%
+     #outputDF <- data.frame(Parameters = names(grepl(nodes, rownames(x))),
+     #output = output)
+     data.frame()%>%
+     dplyr::mutate(Parameters = rownames(x)[grepl(nodes, rownames(x))],
+                   model = rep(paste0("model", i), length(rownames(x)[grepl(nodes, rownames(x))])))%>%
+     dplyr::full_join(data.frame(Parameters = fullModel$expandNodeNames(nodes),
+                                 model = rep(paste0("model", i), length(fullModel$expandNodeNames(nodes)))),
+                      by = c("Parameters", "model"))
+   colnames(output)[1] <- "mean"
+   return(output)
+ })%>%
+   do.call("rbind", .)%>%
+   ggplot(., mapping = aes(x = as.factor(Parameters), y = mean, col = model, group = model))+
+   geom_point()+
+   geom_line()+
+   theme_bw()+
+   xlab("Parameters")
+
+
+
+
+  traceplotRet <- lapply(seq_along(models), function(i){
+    x <- models[[i]]
+    ggmcmc::ggs(x$samples)%>%
+      dplyr::filter(Parameter %in% nodes)%>%
+      ggs_traceplot()+
+      facet_wrap( ~ Parameter, nrow = ceiling(length(nodes)/4), ncol = 4, scales = "free_y")+
+      ggtitle(paste("Model ", i))+
+      theme_bw()
+  })%>%
+    ggpubr::ggarrange(plotlist = .,
+                      nrow = length(models),
+                      common.legend = TRUE)
+
+  densityplotRet <- lapply(seq_along(models), function(i){
+    x <- models[[i]]
+    ggmcmc::ggs(x$samples)%>%
+      dplyr::filter(Parameter %in% nodes)%>%
+      ggs_density()+
+      ggtitle(paste("Model ", i))+
+      facet_wrap( ~ Parameter, nrow = ceiling(length(nodes)/4), ncol = 4, scales = "free_y")+
+      theme_bw()
+  })%>%
+    ggpubr::ggarrange(plotlist = .,
+                      nrow = length(models),
+                      common.legend = TRUE)
+
+  # Results to return
+  retlist <- list()
+  if(efficiency) retlist$efficiencyPlot <- efficiencyPlot
+  if(ESS) retlist$essPlot <- effectivePlot
+  if(MCse) retlist$mcsePlot <- mcsePlot
+  if(traceplot) retlist$tracePlot <- traceplotRet
+  if(density) retlist$densityPlot <-   densityplotRet
+
+  return(retlist)
 
 }
