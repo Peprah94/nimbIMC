@@ -685,12 +685,16 @@ compareModelsMeanPlots <- function(models = list(),
 
  meanPlot <- lapply(seq_along(allData), function(i){
    x <- allData[[i]]
-  output <-  x[grepl(nodes, rownames(x)),"Mean"]%>%
+  lengthNodes <- length(sapply(nodes, function(r){rownames(x)[grepl(r, rownames(x))]}))
+  nodeNames <- as.vector(sapply(nodes, function(r){c(rownames(x)[grepl(r, rownames(x))])}))
+
+  output <-  sapply(nodes, function(r){x[grepl(r, rownames(x)),"Mean"]})%>%
   #outputDF <- data.frame(Parameters = names(grepl(nodes, rownames(x))),
                          #output = output)
-     data.frame()%>%
-     dplyr::mutate(Parameters = rownames(x)[grepl(nodes, rownames(x))],
-                   model = rep(paste0("model", i), length(rownames(x)[grepl(nodes, rownames(x))])))%>%
+   # t()%>%
+    data.frame()%>%
+     dplyr::mutate(Parameters = nodeNames,
+                   model = rep(paste0("model", i), lengthNodes))%>%
      dplyr::full_join(data.frame(Parameters = fullModel$expandNodeNames(nodes),
                                  model = rep(paste0("model", i), length(fullModel$expandNodeNames(nodes)))),
                       by = c("Parameters", "model"))
@@ -706,61 +710,66 @@ compareModelsMeanPlots <- function(models = list(),
 
  sePlot <- lapply(seq_along(allData), function(i){
    x <- allData[[i]]
-   output <-  x[grepl(nodes, rownames(x)),c(1,3) ]%>%
+   lengthNodes <- length(sapply(nodes, function(r){rownames(x)[grepl(r, rownames(x))]}))
+   nodeNames <- as.vector(sapply(nodes, function(r){c(rownames(x)[grepl(r, rownames(x))])}))
+
+   output <-  sapply(nodes, function(r){x[grepl(r, rownames(x)),c(1,3)]})%>%
      #outputDF <- data.frame(Parameters = names(grepl(nodes, rownames(x))),
      #output = output)
+     t()%>%
      data.frame()%>%
-     dplyr::mutate(Parameters = rownames(x)[grepl(nodes, rownames(x))],
-                   model = rep(paste0("model", i), length(rownames(x)[grepl(nodes, rownames(x))])))%>%
+     dplyr::mutate(Parameters = nodeNames,
+                   model = rep(paste0("model", i), lengthNodes))%>%
      dplyr::full_join(data.frame(Parameters = fullModel$expandNodeNames(nodes),
                                  model = rep(paste0("model", i), length(fullModel$expandNodeNames(nodes)))),
                       by = c("Parameters", "model"))
-   colnames(output)[1] <- "mean"
+   colnames(output)[1:2] <- c("mean", "se")
    return(output)
  })%>%
    do.call("rbind", .)%>%
    ggplot(., mapping = aes(x = as.factor(Parameters), y = mean, col = model, group = model))+
    geom_point()+
    geom_line()+
+   geom_ribbon(aes(ymin = mean - se, ymax = mean + se, fill = model), alpha = 0.1) +
+   theme_bw()+
+   xlab("Parameters")
+
+
+ confintPlot <- lapply(seq_along(allData), function(i){
+   x <- allData[[i]]
+   lengthNodes <- length(sapply(nodes, function(r){rownames(x)[grepl(r, rownames(x))]}))
+   nodeNames <- as.vector(sapply(nodes, function(r){c(rownames(x)[grepl(r, rownames(x))])}))
+
+   output <-  sapply(nodes, function(r){x[grepl(r, rownames(x)),c(1,4,5)]})%>%
+     #outputDF <- data.frame(Parameters = names(grepl(nodes, rownames(x))),
+     #output = output)
+     t()%>%
+     data.frame()%>%
+     dplyr::mutate(Parameters = nodeNames,
+                   model = rep(paste0("model", i), lengthNodes))%>%
+     dplyr::full_join(data.frame(Parameters = fullModel$expandNodeNames(nodes),
+                                 model = rep(paste0("model", i), length(fullModel$expandNodeNames(nodes)))),
+                      by = c("Parameters", "model"))
+   colnames(output)[1:3] <- c("mean", "lower", "upper")
+   return(output)
+ })%>%
+   do.call("rbind", .)%>%
+   ggplot(., mapping = aes(x = as.factor(Parameters), y = mean, col = model, group = model))+
+   geom_point()+
+   geom_line()+
+   geom_ribbon(aes(ymin = lower, ymax = upper, fill = model), alpha = 0.1) +
    theme_bw()+
    xlab("Parameters")
 
 
 
-
-  traceplotRet <- lapply(seq_along(models), function(i){
-    x <- models[[i]]
-    ggmcmc::ggs(x$samples)%>%
-      dplyr::filter(Parameter %in% nodes)%>%
-      ggs_traceplot()+
-      facet_wrap( ~ Parameter, nrow = ceiling(length(nodes)/4), ncol = 4, scales = "free_y")+
-      ggtitle(paste("Model ", i))+
-      theme_bw()
-  })%>%
-    ggpubr::ggarrange(plotlist = .,
-                      nrow = length(models),
-                      common.legend = TRUE)
-
-  densityplotRet <- lapply(seq_along(models), function(i){
-    x <- models[[i]]
-    ggmcmc::ggs(x$samples)%>%
-      dplyr::filter(Parameter %in% nodes)%>%
-      ggs_density()+
-      ggtitle(paste("Model ", i))+
-      facet_wrap( ~ Parameter, nrow = ceiling(length(nodes)/4), ncol = 4, scales = "free_y")+
-      theme_bw()
-  })%>%
-    ggpubr::ggarrange(plotlist = .,
-                      nrow = length(models),
-                      common.legend = TRUE)
-
   # Results to return
   retlist <- list()
-  if(efficiency) retlist$efficiencyPlot <- efficiencyPlot
-  if(ESS) retlist$essPlot <- effectivePlot
-  if(MCse) retlist$mcsePlot <- mcsePlot
-  if(traceplot) retlist$tracePlot <- traceplotRet
-  if(density) retlist$densityPlot <-   densityplotRet
+
+  if(mean) retlist$meanPlot <-  meanPlot
+  if(se) retlist$sePlot <-  sePlot
+  if(confint) retlist$confintPlot <- confintPlot
+
 
   return(retlist)
 
