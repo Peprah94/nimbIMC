@@ -1,78 +1,21 @@
-#' Create an auxiliary particle filter algorithm to estimate log-likelihood.
+#' Compare models fitted with the proposed framework
 #'
-#' @description Create an auxiliary particle filter algorithm for a given NIMBLE state space model.
+#' @description Returns a dataframe with the times the models run, the effective sample size of each model, the efficiency of each model (where efficiency = ESS/times run) and the Monte Carlo standard error
 #'
-#' @param model A NIMBLE model object, typically representing a state space model or a hidden Markov model.
-#' @param nodes  A character vector specifying the latent model nodes
-#'  over which the particle filter will stochastically integrate to
-#'  estimate the log-likelihood function.  All provided nodes must be stochastic.
-#'  Can be one of three forms: a variable name, in which case all elements in the variable
-#'  are taken to be latent (e.g., 'x'); an indexed variable, in which case all indexed elements are taken
-#'  to be latent (e.g., 'x[1:100]' or 'x[1:100, 1:2]'); or a vector of multiple nodes, one per time point,
-#'  in increasing time order (e.g., c("x[1:2, 1]", "x[1:2, 2]", "x[1:2, 3]", "x[1:2, 4]")).
-#' @param control  A list specifying different control options for the particle filter.  Options are described in the details section below.
-#' @author  Nicholas Michaud
-#' @details
-#' Each of the \code{control()} list options are described in detail here:
-#' \describe{
-#' \item{lookahead}{The lookahead function used to calculate auxiliary weights.  Can choose between \code{'mean'} and \code{'simulate'}.
-#'  Defaults to \code{'simulate'}.}
-#'  \item{resamplingMethod}{The type of resampling algorithm to be used within the particle filter.  Can choose between \code{'default'} (which uses NIMBLE's \code{rankSample()} function), \code{'systematic'}, \code{'stratified'}, \code{'residual'}, and \code{'multinomial'}.  Defaults to \code{'default'}. Resampling methods other than \code{'default'} are currently experimental.}
-#'  \item{saveAll}{Indicates whether to save state samples for all time points (\code{TRUE}), or only for the most recent time point (\code{FALSE})}
-#'  \item{smoothing}{Decides whether to save smoothed estimates of latent states, i.e., samples from f(x[1:t]|y[1:t]) if \code{smoothing = TRUE}, or instead to save filtered samples from f(x[t]|y[1:t]) if \code{smoothing = FALSE}. \code{smoothing = TRUE} only works if \code{saveAll = TRUE}.}
-#'  \item{timeIndex}{An integer used to manually specify which dimension of the latent state variable indexes time. This need only be set if the number of time points is less than or equal to the size of the latent state at each time point.}
-#'  \item{initModel}{A logical value indicating whether to initialize the model before running the filtering algorithm.  Defaults to TRUE.}
-#'  }
-#'
-#' The auxiliary particle filter modifies the bootstrap filter (\code{\link{buildBootstrapFilter}})
-#' by adding a lookahead step to the algorithm: before propagating particles from one time
-#' point to the next via the transition equation, the auxiliary filter calculates a weight
-#' for each pre-propogated particle by predicting how well the particle will agree with the
-#' next data point.  These pre-weights are used to conduct an initial resampling step before
-#' propagation.
-#'
-#'  The resulting specialized particle filter algorthm will accept a
-#'  single integer argument (\code{m}, default 10,000), which specifies the number
-#'  of random \'particles\' to use for estimating the log-likelihood.  The algorithm
-#'  returns the estimated log-likelihood value, and saves
-#'  unequally weighted samples from the posterior distribution of the latent
-#'  states in the \code{mvWSamples} modelValues object, with corresponding logged weights in \code{mvWSamples['wts',]}.
-#'  An equally weighted sample from the posterior can be found in the \code{mvEWsamp} modelValues object.
-#'
-#'   The auxiliary particle filter uses a lookahead function to select promising particles before propagation.  This function can eithre be the expected
-#'   value of the latent state at the next time point (\code{lookahead = 'mean'}) or a simulation from the distribution of the latent state at the next time point (\code{lookahead = 'simulate'}), conditioned on the current particle.
-#'
-#'  @section \code{returnESS()} Method:
-#'  Calling the \code{returnESS()} method of an auxiliary particle filter after that filter has been \code{run()} for a given model will return a vector of ESS (effective
-#'  sample size) values, one value for each time point.
-
+#' @param models A list of MCMC results estimated from the sparta Updating functions in this paper
+#' @param n.chains The number of chains for the models. The n.chains should be equal for all models.
+#' @param modelNames The names to be assigned to each model in the models parameter.
+#' The default is NULL and the model names are created with the names 'Model 1', Model 2, ... Model N (where N = n.chains)
+#' @param method  The methods to be used in estimating the Monte Carlo standard error.
+#' The choices of these should be the same as there is in the mcmcse package. The default chosen is batch means ("bm").
+#' @param metrics list of logical responses for whether the following parameters should be returned: timeRun, ESS, efficiency, MCse.
+#' @author  Kwaku Peprah Adjei
 #' @export
 #'
 #' @family particle filtering methods
-#' @references Pitt, M.K., and Shephard, N. (1999). Filtering via simulation: Auxiliary particle filters. \emph{Journal of the American Statistical Association} 94(446): 590-599.
+#' @references Flegal, J. M., Hughes, J., Vats, D., Dai, N., Gupta, K., Maji, U., ... & Rcpp, L. (2017). Package ‘mcmcse’.
 #'
 #' @examples
-#' ## For illustration only.
-#' exampleCode <- nimbleCode({
-#'   x0 ~ dnorm(0, var = 1)
-#'   x[1] ~ dnorm(.8 * x0, var = 1)
-#'   y[1] ~ dnorm(x[1], var = .5)
-#'   for(t in 2:10){
-#'     x[t] ~ dnorm(.8 * x[t-1], var = 1)
-#'     y[t] ~ dnorm(x[t], var = .5)
-#'   }
-#' })
-#'
-#' model <- nimbleModel(code = exampleCode, data = list(y = rnorm(10)),
-#'                      inits = list(x0 = 0, x = rnorm(10)))
-#' my_AuxF <- buildAuxiliaryFilter(model, 'x',
-#'                 control = list(saveAll = TRUE, lookahead = 'mean'))
-#' ## Now compile and run, e.g.,
-#' ## Cmodel <- compileNimble(model)
-#' ## Cmy_AuxF <- compileNimble(my_AuxF, project = model)
-#' ## logLik <- Cmy_AuxF$run(m = 1000)
-#' ## ESS <- Cmy_AuxF$returnESS()
-#' ## aux_X <- as.matrix(Cmy_AuxF$mvEWSamples, 'x')
 
 compareModelsPars <- function(models = list(),
                               n.chains = NULL,
@@ -99,6 +42,7 @@ compareModelsPars <- function(models = list(),
   modelsLength <- length(models)
   if(is.null(modelNames)) modelNames = paste("Model", 1:modelsLength)
 
+  #Define default number of chains
   if(is.null(n.chains)) n.chains = 1
 
   ######################
@@ -114,6 +58,10 @@ compareModelsPars <- function(models = list(),
     }
   })%>%
     do.call('c', .)
+
+  ######################
+  # Effective sample size
+  ##########################
 
   if(ESS) ESSret <- lapply(models, function(x){
     nDim <- length(x$samples[[1]])
@@ -194,41 +142,27 @@ compareModelsPars <- function(models = list(),
 }
 
 
-#' Create an auxiliary particle filter algorithm to estimate log-likelihood.
+#' Compare models fitted with the proposed framework for some specific parameters
 #'
-#' @description Returns Monte Carlo Standard error, effective sample size and efficiency of individual parameters
+#' @description Returns a dataframe with the times the models run, the effective sample size of each model, the efficiency of each model (where efficiency = ESS/times run) and the Monte Carlo standard error
 #'
-#' @param models A list of MCMC models we are interested in returning results for
-#' @param nodes A vector name of nodes we are interested in returning results for
-#' @param method  The method to use for estimating the Monte Carlo standard error. For details, check the vignette of mcmcse package.
+#' @param models A list of MCMC results estimated from the sparta Updating functions in this paper
+#' @param modelNames The names to be assigned to each model in the models parameter.
+#' @param n.chains The number of chains for the models. The n.chains should be equal for all models.
+#' The default is NULL and the model names are created with the names 'Model 1', Model 2, ... Model N (where N = n.chains)
+#' @param nodes The parameters we are interested in retrieving the ESS, efficiency and Monte Carlo Standard error for.
+#' @param method  The methods to be used in estimating the Monte Carlo standard error.
+#' The choices of these should be the same as there is in the mcmcse package. The default chosen is batch means ("bm").
+#' @param metrics list of logical responses for whether the following parameters should be returned: timeRun, ESS, efficiency, MCse.
+#' The MCse is estimated with mcmcse package and ESS was estimated with ggmcmc package in R
 #' @author  Kwaku Peprah Adjei
 #' @export
 #'
-#' @family updating particle filters
-#' @references Pitt, M.K., and Shephard, N. (1999). Filtering via simulation: Auxiliary particle filters. \emph{Journal of the American Statistical Association} 94(446): 590-599.
+#' @family particle filtering methods
+#' @references Fernández-i-Marín, X. (2013). Using the ggmcmc Package.
+#' @references Flegal, J. M., Hughes, J., Vats, D., Dai, N., Gupta, K., Maji, U., ... & Rcpp, L. (2017). Package ‘mcmcse’.
 #'
 #' @examples
-#' ## For illustration only.
-#' exampleCode <- nimbleCode({
-#'   x0 ~ dnorm(0, var = 1)
-#'   x[1] ~ dnorm(.8 * x0, var = 1)
-#'   y[1] ~ dnorm(x[1], var = .5)
-#'   for(t in 2:10){
-#'     x[t] ~ dnorm(.8 * x[t-1], var = 1)
-#'     y[t] ~ dnorm(x[t], var = .5)
-#'   }
-#' })
-#'
-#' model <- nimbleModel(code = exampleCode, data = list(y = rnorm(10)),
-#'                      inits = list(x0 = 0, x = rnorm(10)))
-#' my_AuxF <- buildAuxiliaryFilter(model, 'x',
-#'                 control = list(saveAll = TRUE, lookahead = 'mean'))
-#' ## Now compile and run, e.g.,
-#' ## Cmodel <- compileNimble(model)
-#' ## Cmy_AuxF <- compileNimble(my_AuxF, project = model)
-#' ## logLik <- Cmy_AuxF$run(m = 1000)
-#' ## ESS <- Cmy_AuxF$returnESS()
-#' ## aux_X <- as.matrix(Cmy_AuxF$mvEWSamples, 'x')
 
 compareModelsIndividualPars <- function(models = list(),
                                         modelNames = NULL,
@@ -256,8 +190,8 @@ if(is.null(modelNames)) modelNames = paste("Model", 1:modelsLength)
 
   ##################
   # Times run
-  ############
-  if(timeRun) timesRet <- lapply(models, function(x){
+  ##################
+  timesRet <- lapply(models, function(x){
     nDim <- length(x$timeRun)
     if(nDim == 1){
       x$timeRun
@@ -269,7 +203,7 @@ if(is.null(modelNames)) modelNames = paste("Model", 1:modelsLength)
   ####################
   # estimate Monte Carlo Standard error
   ##################
-  if(MCse) MCseRet <- lapply(seq_along(models), function(i){
+MCseRet <- lapply(seq_along(models), function(i){
     x <- models[[i]]
     nDim <- length(x$samples[[1]])
     if(nDim >2 ){
@@ -305,48 +239,10 @@ if(is.null(modelNames)) modelNames = paste("Model", 1:modelsLength)
     return(ret)
   })
 names(MCseRet) <- modelNames
+
   #############
   # Effective sample Size
   ##############
-  # if(ESS) ESSret <- MCseRet <- lapply(seq_along(models), function(i){
-  #   x <- models[[i]]
-  #   nDim <- length(x$samples[[1]])
-  #   if(nDim >2 ){
-  #     ret <- lapply(as.list(1:n.chains), function(y){seEst <- mcmcse::mcse.mat(as.matrix(x$samples[[y]][,nodes]),
-  #                                                                              method = "bm",
-  #                                                                              g = NULL)%>%
-  #       as.data.frame()%>%
-  #       dplyr::select(se)
-  #     colnames(seEst) <- modelNames[i]
-  #     return(seEst)
-  #     })
-  #
-  #     names(ret) <- chainNames
-  #
-  #     ret$all.chains <- do.call("cbind", ret)%>%
-  #       rowMeans(.)
-  #   }else{
-  #     ret <- lapply(as.list(1:n.chains), function(y){seEst <- mcmcse::mcse.mat(as.matrix(x$samples[[y]][[2]][,nodes]),
-  #                                                                              method = "bm",
-  #                                                                              g = NULL)%>%
-  #       as.data.frame()%>%
-  #       dplyr::select(se)
-  #     colnames(seEst) <- modelNames[i]
-  #     return(seEst)
-  #     })
-  #
-  #     names(ret) <- chainNames
-  #
-  #     ret$all.chains <- do.call("cbind", ret)%>%
-  #       rowMeans(.)
-  #   }
-  #
-  #   return(ret)
-  # })
-
-
-
-
     ESSret <- lapply(models, function(x) {ggmcmc::ggs_effective(ggs(x$samples),
                         proportion = FALSE,
                         plot =  FALSE)%>%
@@ -356,7 +252,7 @@ names(MCseRet) <- modelNames
   #############
   # Efficiency
   ##############
-  if(efficiency) efficiencyRet <- lapply(seq_along(models), function(i){
+  efficiencyRet <- lapply(seq_along(models), function(i){
     ESSret[[i]]%>%
       dplyr::mutate(timeRan = as.numeric(timesRet[i]),
                     efficiency = Effective/ as.numeric(timesRet[i]),
@@ -366,49 +262,36 @@ names(MCseRet) <- modelNames
 
   # Results to return
 retlist <- list()
-retlist$efficiency <- efficiencyRet
-retlist$timeRun <- timesRet
-retlist$mcse <- MCseRet
+if(efficiency) retlist$efficiency <- efficiencyRet
+if(timeRun) retlist$timeRun <- timesRet
+if(MCse) retlist$mcse <- MCseRet
+if(ESS) retlist$ess <- ESSret
 
   return(retlist)
 }
 
 
-#' Create an auxiliary particle filter algorithm to estimate log-likelihood.
+#' Compare models plot for fitted SSMs with the proposed framework for some specific parameters
 #'
-#' @description Returns Monte Carlo Standard error, effective sample size and efficiency of individual parameters
+#' @description Returns a dataframe with the times the models run, the effective sample size of each model, the efficiency of each model (where efficiency = ESS/times run) and the Monte Carlo standard error
 #'
-#' @param models A list of MCMC models we are interested in returning results for
-#' @param nodes A vector name of nodes we are interested in returning results for
-#' @param method  The method to use for estimating the Monte Carlo standard error. For details, check the vignette of mcmcse package.
+#' @param models A list of MCMC results estimated from the sparta Updating functions in this paper
+#' @param modelNames The names to be assigned to each model in the models parameter.
+#' @param n.chains The number of chains for the models. The n.chains should be equal for all models.
+#' The default is NULL and the model names are created with the names 'Model 1', Model 2, ... Model N (where N = n.chains)
+#' @param nodes The parameters we are interested in retrieving the ESS, efficiency and Monte Carlo Standard error for.
+#' @param method  The methods to be used in estimating the Monte Carlo standard error.
+#' The choices of these should be the same as there is in the mcmcse package. The default chosen is batch means ("bm").
+#' @param metrics list of logical responses for whether the plots of the following parameters should be returned: ESS, efficiency, MCse, traceplot and  density plot.
+#' The MCse is estimated with mcmcse package and ESS was estimated with ggmcmc package in R
 #' @author  Kwaku Peprah Adjei
 #' @export
 #'
-#' @family updating particle filters
-#' @references Pitt, M.K., and Shephard, N. (1999). Filtering via simulation: Auxiliary particle filters. \emph{Journal of the American Statistical Association} 94(446): 590-599.
+#' @family particle filtering methods
+#' @references Fernández-i-Marín, X. (2013). Using the ggmcmc Package.
+#' @references Flegal, J. M., Hughes, J., Vats, D., Dai, N., Gupta, K., Maji, U., ... & Rcpp, L. (2017). Package ‘mcmcse’.
 #'
 #' @examples
-#' ## For illustration only.
-#' exampleCode <- nimbleCode({
-#'   x0 ~ dnorm(0, var = 1)
-#'   x[1] ~ dnorm(.8 * x0, var = 1)
-#'   y[1] ~ dnorm(x[1], var = .5)
-#'   for(t in 2:10){
-#'     x[t] ~ dnorm(.8 * x[t-1], var = 1)
-#'     y[t] ~ dnorm(x[t], var = .5)
-#'   }
-#' })
-#'
-#' model <- nimbleModel(code = exampleCode, data = list(y = rnorm(10)),
-#'                      inits = list(x0 = 0, x = rnorm(10)))
-#' my_AuxF <- buildAuxiliaryFilter(model, 'x',
-#'                 control = list(saveAll = TRUE, lookahead = 'mean'))
-#' ## Now compile and run, e.g.,
-#' ## Cmodel <- compileNimble(model)
-#' ## Cmy_AuxF <- compileNimble(my_AuxF, project = model)
-#' ## logLik <- Cmy_AuxF$run(m = 1000)
-#' ## ESS <- Cmy_AuxF$returnESS()
-#' ## aux_X <- as.matrix(Cmy_AuxF$mvEWSamples, 'x')
 
 compareModelsPlots <- function(models = list(),
                                 modelNames = NULL,
@@ -449,9 +332,11 @@ timesRet <- lapply(models, function(x){
     }
   })%>%
     do.call('c', .)
+
   ####################
   # estimate Monte Carlo Standard error
   ##################
+
 MCseRet <- lapply(seq_along(models), function(i){
     x <- models[[i]]
     nDim <- length(x$samples[[1]])
@@ -488,47 +373,11 @@ MCseRet <- lapply(seq_along(models), function(i){
     return(ret)
   })
   names(MCseRet) <- modelNames
+
+
   #############
   # Effective sample Size
   ##############
-  # if(ESS) ESSret <- MCseRet <- lapply(seq_along(models), function(i){
-  #   x <- models[[i]]
-  #   nDim <- length(x$samples[[1]])
-  #   if(nDim >2 ){
-  #     ret <- lapply(as.list(1:n.chains), function(y){seEst <- mcmcse::mcse.mat(as.matrix(x$samples[[y]][,nodes]),
-  #                                                                              method = "bm",
-  #                                                                              g = NULL)%>%
-  #       as.data.frame()%>%
-  #       dplyr::select(se)
-  #     colnames(seEst) <- modelNames[i]
-  #     return(seEst)
-  #     })
-  #
-  #     names(ret) <- chainNames
-  #
-  #     ret$all.chains <- do.call("cbind", ret)%>%
-  #       rowMeans(.)
-  #   }else{
-  #     ret <- lapply(as.list(1:n.chains), function(y){seEst <- mcmcse::mcse.mat(as.matrix(x$samples[[y]][[2]][,nodes]),
-  #                                                                              method = "bm",
-  #                                                                              g = NULL)%>%
-  #       as.data.frame()%>%
-  #       dplyr::select(se)
-  #     colnames(seEst) <- modelNames[i]
-  #     return(seEst)
-  #     })
-  #
-  #     names(ret) <- chainNames
-  #
-  #     ret$all.chains <- do.call("cbind", ret)%>%
-  #       rowMeans(.)
-  #   }
-  #
-  #   return(ret)
-  # })
-
-
-
 
   ESSret <- lapply(models, function(x) {ggmcmc::ggs_effective(ggmcmc::ggs(x$samples),
                                                               proportion = FALSE,
@@ -554,6 +403,7 @@ efficiencyRet <- lapply(seq_along(models), function(i){
 
   modelNamesPlots <- rep(modelNames, each = length(nodes))
 
+  #efficiency plot
   efficiencyPlot <- efficiencyRet%>%
     do.call("rbind", .)%>%
     mutate(model = modelNamesPlots)%>%
@@ -566,6 +416,7 @@ efficiencyRet <- lapply(seq_along(models), function(i){
     theme_bw()+
     ylab("Efficiency = ESS/Run time")
 
+  #effective sample size plot
   effectivePlot <- efficiencyRet%>%
     do.call("rbind", .)%>%
     mutate(model = modelNamesPlots)%>%
@@ -590,7 +441,7 @@ efficiencyRet <- lapply(seq_along(models), function(i){
     theme_bw()+
     ylab("Monte Carlo standard error (MCSE)")
 
-
+  #traceplot plot
   traceplotRet <- lapply(seq_along(models), function(i){
     x <- models[[i]]
     ggmcmc::ggs(x$samples)%>%
@@ -604,6 +455,7 @@ efficiencyRet <- lapply(seq_along(models), function(i){
                       nrow = length(models),
                       common.legend = TRUE)
 
+  #density plot
   densityplotRet <- lapply(seq_along(models), function(i){
     x <- models[[i]]
     ggmcmc::ggs(x$samples)%>%
@@ -630,41 +482,29 @@ efficiencyRet <- lapply(seq_along(models), function(i){
 }
 
 
-#' Create an auxiliary particle filter algorithm to estimate log-likelihood.
+#' Compare models plot for fitted SSMs with the proposed framework for some specific parameters
 #'
-#' @description Returns Monte Carlo Standard error, effective sample size and efficiency of individual parameters
+#' @description Returns a dataframe with the times the models run, the effective sample size of each model, the efficiency of each model (where efficiency = ESS/times run) and the Monte Carlo standard error
 #'
-#' @param models A list of MCMC models we are interested in returning results for
-#' @param nodes A vector name of nodes we are interested in returning results for
-#' @param method  The method to use for estimating the Monte Carlo standard error. For details, check the vignette of mcmcse package.
+#' @param models A list of MCMC results estimated from the sparta Updating functions in this paper
+#' @param modelNames The names to be assigned to each model in the models parameter.
+#' @param fullModel The full NIMBLE model used for running the updated model.
+#' @param nodes The parameters we are interested in retrieving the ESS, efficiency and Monte Carlo Standard error for.
+#' @param method  The methods to be used in estimating the Monte Carlo standard error.
+#' The choices of these should be the same as there is in the mcmcse package. The default chosen is batch means ("bm").
+#' @param metrics list of logical responses for whether the plots of the following parameters should be returned: mean, se, confint.
+#' If mean = TRUE, it plots the posterior mean of the nodes (parameters)
+#' If se = TRUE, it plots the posterior mean plus or minus the standard error of the nodes (parameters).
+#' If confint = TRUE, it plots the posterior mean of the nodes with the 95% credible intervals.
+#' The MCse is estimated with mcmcse package and ESS was estimated with ggmcmc package in R
 #' @author  Kwaku Peprah Adjei
 #' @export
 #'
-#' @family updating particle filters
-#' @references Pitt, M.K., and Shephard, N. (1999). Filtering via simulation: Auxiliary particle filters. \emph{Journal of the American Statistical Association} 94(446): 590-599.
+#' @family particle filtering methods
+#' @references Fernández-i-Marín, X. (2013). Using the ggmcmc Package.
+#' @references Flegal, J. M., Hughes, J., Vats, D., Dai, N., Gupta, K., Maji, U., ... & Rcpp, L. (2017). Package ‘mcmcse’.
 #'
 #' @examples
-#' ## For illustration only.
-#' exampleCode <- nimbleCode({
-#'   x0 ~ dnorm(0, var = 1)
-#'   x[1] ~ dnorm(.8 * x0, var = 1)
-#'   y[1] ~ dnorm(x[1], var = .5)
-#'   for(t in 2:10){
-#'     x[t] ~ dnorm(.8 * x[t-1], var = 1)
-#'     y[t] ~ dnorm(x[t], var = .5)
-#'   }
-#' })
-#'
-#' model <- nimbleModel(code = exampleCode, data = list(y = rnorm(10)),
-#'                      inits = list(x0 = 0, x = rnorm(10)))
-#' my_AuxF <- buildAuxiliaryFilter(model, 'x',
-#'                 control = list(saveAll = TRUE, lookahead = 'mean'))
-#' ## Now compile and run, e.g.,
-#' ## Cmodel <- compileNimble(model)
-#' ## Cmy_AuxF <- compileNimble(my_AuxF, project = model)
-#' ## logLik <- Cmy_AuxF$run(m = 1000)
-#' ## ESS <- Cmy_AuxF$returnESS()
-#' ## aux_X <- as.matrix(Cmy_AuxF$mvEWSamples, 'x')
 
 compareModelsMeanPlots <- function(models = list(),
                                modelNames = NULL,
@@ -678,11 +518,12 @@ compareModelsMeanPlots <- function(models = list(),
   se <- metrics[["se"]]
   confint <- metrics[["confint"]]
 
+  #Retrieve the MCMC output from all the models
  allData <-  lapply(models, function(x){
     x$summary$all.chains
   })
 
-
+# Mean plot
  meanPlot <- lapply(seq_along(allData), function(i){
    x <- allData[[i]]
   lengthNodes <- length(sapply(nodes, function(r){rownames(x)[grepl(r, rownames(x))]}))
@@ -708,6 +549,7 @@ compareModelsMeanPlots <- function(models = list(),
    theme_bw()+
    xlab("Parameters")
 
+ # Mean plus/minus standard deviation
  sePlot <- lapply(seq_along(allData), function(i){
    x <- allData[[i]]
    lengthNodes <- length(sapply(nodes, function(r){rownames(x)[grepl(r, rownames(x))]}))
@@ -734,7 +576,7 @@ compareModelsMeanPlots <- function(models = list(),
    theme_bw()+
    xlab("Parameters")
 
-
+# Mean with credible interval
  confintPlot <- lapply(seq_along(allData), function(i){
    x <- allData[[i]]
    lengthNodes <- length(sapply(nodes, function(r){rownames(x)[grepl(r, rownames(x))]}))
@@ -769,7 +611,6 @@ compareModelsMeanPlots <- function(models = list(),
   if(mean) retlist$meanPlot <-  meanPlot
   if(se) retlist$sePlot <-  sePlot
   if(confint) retlist$confintPlot <- confintPlot
-
 
   return(retlist)
 
