@@ -553,6 +553,7 @@ ggplot()+
 ## Sparta Example
 
 We simulate some data
+
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 simSpartaData <- function(nsites, nvisits, nyears, intercept.p, init.a){
   set.seed(24)
@@ -654,6 +655,7 @@ occStateModel <- nimbleCode({
 ```
 
 We run the baseline model to be compared with the updating of the model
+
 ```{r, warning=FALSE, message=TRUE}
 data <- list(
   y = simData$y
@@ -786,8 +788,6 @@ mcmc.out <- runMCMC(compiledList$updatedStateSpaceMCMC,
 
 save(mcmc.out, file="spartaUpdated.RData")
 ```
-
-
 
 ## To do for next week
 
