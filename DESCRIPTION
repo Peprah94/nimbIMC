@@ -37,9 +37,7 @@ Imports:
     gridExtra,
     foreach,
     doParallel,
-    viridis,
-    RandomFieldsUtils,
-    RandomFields
+    viridis
 License: What license is it under?
 Encoding: UTF-8
 LazyData: true

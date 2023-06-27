@@ -97,7 +97,8 @@ INLAWiNimDataGenerating <- function(data,
                                 summary = mcmcConfiguration[["summary"]],
                                 WAIC = mcmcConfiguration[["WAIC"]])
     endTime <- Sys.time()
-    timeTaken <- as.numeric(endTime - startTime)
+    timeTaken <- difftime(endTime, startTime, units = "secs")
+      #as.numeric(endTime - startTime)
 
     ret <- list(mcmc.out = mcmc.out,
                 timeTaken = timeTaken)
@@ -137,7 +138,7 @@ INLAWiNimDataGenerating <- function(data,
                                 summary = mcmcConfiguration[["summary"]],
                                 WAIC = mcmcConfiguration[["WAIC"]])
     endTime <- Sys.time()
-    timeTaken <- as.numeric(endTime - startTime)
+    timeTaken <- difftime(endTime, startTime, units = "secs")
 
     ret <- list(mcmc.out = mcmc.out,
                 timeTaken = timeTaken)

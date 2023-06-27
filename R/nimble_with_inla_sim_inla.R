@@ -219,7 +219,7 @@ INLAWiNim <- function(data,
                               WAIC = mcmcConfiguration[["WAIC"]])
 
   endTime <- Sys.time()
-  timeTaken <- as.numeric(endTime - startTime)
+  timeTaken <- difftime(endTime, startTime, units = "secs")
   #Output from the MCMC
   output <- mcmc.out$summary
   output

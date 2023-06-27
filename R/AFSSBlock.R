@@ -183,7 +183,7 @@ out <- -Inf
       if(Rbound - Lbound <= eps | numContractions == maxContractions)
         maxContractionsReached <- TRUE
     }
-    print(out)
+    #print(out)
     if(maxContractionsReached) {
       if(maxContractionsWarning)
         cat("Warning: AF slice sampler reached maximum number of contractions in at least one dimension.\n")
