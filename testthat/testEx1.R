@@ -6,20 +6,23 @@ library(nimbleSMC)
 #library(myphdthesis)
 devtools::load_all(".")
 #devtools::install_github("Peprah94/myphdthesis")
+#devtools::install_github("Peprah94/nimMCMCSMCupdates")
+#library(nimMCMCSMCupdates)
 set.seed(1)
 
 # Setting up MCMC configuration values and variation of parameters
-nIterations = 500
-nBurnin = 100
-nChains = 2
-nThin = 2
+nIterations = 50
+nBurnin = 10
+nChains = 3
+
+#nThin = 2
 nyears = 50
 aVars <- c(0.1, 0.8) # changing the intercept
 #High and small values of a
 iNodePrev <- c(49, 45, 20) # The number of years for reduced model
 aVarstag = 2
 iNodetag = 2
-mcmcRun <- FALSE #use mcmc or nimbleSMC for reduced Model
+mcmcRun <- TRUE #use mcmc or nimbleSMC for reduced Model
 pfTypeRun = "auxiliary"
 
 sim2 <- function(a, b, c, t, mu0){
@@ -42,7 +45,7 @@ simData <- sim2(a = aVars[aVarstag],
                 mu0 = 0.2)
 
 #save data
-save(simData, file = paste0("example1SimData1",aVarstag,".RData"))
+#save(simData, file = paste0("example1SimData1",aVarstag,".RData"))
 
 ####################
 # define the model
@@ -135,25 +138,25 @@ example1ReducedModel <- spartaNimWeights(model = newModelReduced, latent = "x", 
                                                                   n.iter = nIterations,
                                                                   n.chains = nChains,
                                                                   n.burnin = nBurnin,
-                                                                  n.thin = nThin)
+                                                                  n.thin = 1)
 )
 
 #save results
-save(example1ReducedModel, file= paste0("example1ReducedIn1",iNodePrev[iNodetag],"A",aVarstag,".RData"))
+#save(example1ReducedModel, file= paste0("example1ReducedIn1",iNodePrev[iNodetag],"A",aVarstag,".RData"))
 
 ################
 # Updated Model
 ################
 message(paste("Running updated model for iNodePrev = ", iNodePrev[iNodetag], "and a = ", aVars[aVarstag]))
 
-example1UpdatedModel <- spartaNimUpdates(model = stateSpaceModel, #nimble model
+example1UpdatedModel <- nimMCMCSMCupdates::spartaNimUpdates(model = stateSpaceModel, #nimble model
                                          reducedModel = newModelReduced,
                                          latent = "x", #latent variable
                                          #nParFiltRun = 1000,
                                          pfType = pfTypeRun,
                                          MCMCconfiguration = list(target = c('a', 'b', 'c', 'mu0'),
                                                                   additionalPars = "x",
-                                                                  n.iter = (nIterations - nBurnin)/nThin,
+                                                                  n.iter = (nIterations - nBurnin), #/nThin,
                                                                   n.chains = nChains,
                                                                   n.burnin = 0,
                                                                   n.thin = 1),  #saved loglikelihoods from reduced model
@@ -167,7 +170,7 @@ example1UpdatedModel <- spartaNimUpdates(model = stateSpaceModel, #nimble model
 )
 
 
-save(example1UpdatedModel, file= paste0("example1UpdatedIn1AUX",iNodePrev[iNodetag],"A",aVarstag,".RData"))
+#save(example1UpdatedModel, file= paste0("example1UpdatedIn1AUX",iNodePrev[iNodetag],"A",aVarstag,".RData"))
 
 
 

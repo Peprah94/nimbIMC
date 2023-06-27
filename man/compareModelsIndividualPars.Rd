@@ -2,7 +2,7 @@
 % Please edit documentation in R/postMCMCalterations.R
 \name{compareModelsIndividualPars}
 \alias{compareModelsIndividualPars}
-\title{Create an auxiliary particle filter algorithm to estimate log-likelihood.}
+\title{Compare models fitted with the proposed framework for some specific parameters}
 \usage{
 compareModelsIndividualPars(
   models = list(),
@@ -14,46 +14,41 @@ compareModelsIndividualPars(
 )
 }
 \arguments{
-\item{models}{A list of MCMC models we are interested in returning results for}
+\item{models}{A list of MCMC results estimated from the sparta Updating functions in this paper}
 
-\item{nodes}{A vector name of nodes we are interested in returning results for}
+\item{modelNames}{The names to be assigned to each model in the models parameter.}
 
-\item{method}{The method to use for estimating the Monte Carlo standard error. For details, check the vignette of mcmcse package.}
+\item{n.chains}{The number of chains for the models. The n.chains should be equal for all models.
+The default is NULL and the model names are created with the names 'Model 1', Model 2, ... Model N (where N = n.chains)}
+
+\item{nodes}{The parameters we are interested in retrieving the ESS, efficiency and Monte Carlo Standard error for.}
+
+\item{method}{The methods to be used in estimating the Monte Carlo standard error.
+The choices of these should be the same as there is in the mcmcse package. The default chosen is batch means ("bm").}
+
+\item{metrics}{list of logical responses for whether the following parameters should be returned: timeRun, ESS, efficiency, MCse.
+The MCse is estimated with mcmcse package and ESS was estimated with ggmcmc package in R}
 }
 \description{
-Returns Monte Carlo Standard error, effective sample size and efficiency of individual parameters
-}
-\examples{
-## For illustration only.
-exampleCode <- nimbleCode({
-  x0 ~ dnorm(0, var = 1)
-  x[1] ~ dnorm(.8 * x0, var = 1)
-  y[1] ~ dnorm(x[1], var = .5)
-  for(t in 2:10){
-    x[t] ~ dnorm(.8 * x[t-1], var = 1)
-    y[t] ~ dnorm(x[t], var = .5)
-  }
-})
-
-model <- nimbleModel(code = exampleCode, data = list(y = rnorm(10)),
-                     inits = list(x0 = 0, x = rnorm(10)))
-my_AuxF <- buildAuxiliaryFilter(model, 'x',
-                control = list(saveAll = TRUE, lookahead = 'mean'))
-## Now compile and run, e.g.,
-## Cmodel <- compileNimble(model)
-## Cmy_AuxF <- compileNimble(my_AuxF, project = model)
-## logLik <- Cmy_AuxF$run(m = 1000)
-## ESS <- Cmy_AuxF$returnESS()
-## aux_X <- as.matrix(Cmy_AuxF$mvEWSamples, 'x')
+Returns a dataframe with the times the models run, the effective sample size of each model, the efficiency of each model (where efficiency = ESS/times run) and the Monte Carlo standard error
 }
 \references{
-Pitt, M.K., and Shephard, N. (1999). Filtering via simulation: Auxiliary particle filters. \emph{Journal of the American Statistical Association} 94(446): 590-599.
+Fernández-i-Marín, X. (2013). Using the ggmcmc Package.
+
+Flegal, J. M., Hughes, J., Vats, D., Dai, N., Gupta, K., Maji, U., ... & Rcpp, L. (2017). Package ‘mcmcse’.
 }
 \seealso{
-Other updating particle filters: 
+Other particle filtering methods: 
+\code{\link{buildAuxiliaryFilterNew}},
+\code{\link{buildAuxiliaryFilterUpdate}},
+\code{\link{buildBootstrapFilterNew}},
+\code{\link{buildBootstrapFilterUpdate}},
+\code{\link{buildINLAmodel}},
+\code{\link{compareModelsMeanPlots}()},
+\code{\link{compareModelsPars}()},
 \code{\link{compareModelsPlots}()}
 }
 \author{
 Kwaku Peprah Adjei
 }
-\concept{updating particle filters}
+\concept{particle filtering methods}

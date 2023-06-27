@@ -87,7 +87,11 @@ Other particle filtering methods:
 \code{\link{buildAuxiliaryFilterUpdate}},
 \code{\link{buildBootstrapFilterNew}},
 \code{\link{buildBootstrapFilterUpdate}},
-\code{\link{compareModelsPars}()}
+\code{\link{buildINLAmodel}},
+\code{\link{compareModelsIndividualPars}()},
+\code{\link{compareModelsMeanPlots}()},
+\code{\link{compareModelsPars}()},
+\code{\link{compareModelsPlots}()}
 }
 \author{
 Nicholas Michaud
