@@ -29,6 +29,7 @@ fit.inlaAlt <- function(x ,
                    data = data,
                    family = family,
                    verbose=FALSE,
+                   control.fixed = list(prec.intercept = 0.001),
                    control.compute = list(config = TRUE),
                    control.predictor = list(compute = TRUE))
 
