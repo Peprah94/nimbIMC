@@ -22,7 +22,8 @@ INLAWiNimDataGenerating <- function(data,
                                     inlaMCsampler = "RW_INLA_block",
                                     samplerControl = list(),
                                     parametersToMonitor = list(mcmc = c("mcmc"),
-                                                               inla = c("inla")),
+                                                               inla = c("inla"),
+                                                               additionalPars = NULL),
                                     mcmcConfiguration = list(n.chains = 1,
                                                              n.iterations = 10,
                                                              n.burnin = 0,
@@ -75,7 +76,12 @@ INLAWiNimDataGenerating <- function(data,
                         type = inlaMCsampler,
                         control = samplerControl)
 
-    mcmcconf$printSamplers()
+    mcmcconf$printSamplers(executionOrder = TRUE)
+    mcmcconf$addMonitors(target)
+
+    if(!is.null(parametersToMonitor$additionalPars)){
+      mcmcconf$addMonitors(parametersToMonitor$additionalPars)
+    }
 
     #build model
     Rmcmc <- nimble::buildMCMC(mcmcconf)
