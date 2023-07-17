@@ -64,7 +64,7 @@ inlaFStep <- nimbleFunction(
    # vals <-
     #ll <-
     #copy(mvEWSamples, model, nodes = fixedVals, row = 1)
-    res <- nimbleINLA(x, y, beta= beta, fixedVals,  family = fam)
+    res <- try(nimbleINLA(x, y, beta= beta, fixedVals,  family = fam), silent = TRUE)
 
 #interInModel= interInModel,
     # save results
