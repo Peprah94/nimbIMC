@@ -573,7 +573,7 @@ sampler_AF_slice_binary <- nimbleFunction(
     adaptFactorInterval    <- extractControlElement(control, 'sliceAdaptFactorInterval', 200)
     adaptWidthMaxIter      <- extractControlElement(control, 'sliceAdaptWidthMaxIter',   512)
     adaptWidthTolerance    <- extractControlElement(control, 'sliceAdaptWidthTolerance', 0.1)
-    maxContractions        <- extractControlElement(control, 'maxContractions',          5)
+    maxContractions        <- extractControlElement(control, 'maxContractions',          500)
     maxContractionsWarning <- extractControlElement(control, 'maxContractionsWarning',   TRUE)
     eps <- 1e-15
     ## node list generation
@@ -769,12 +769,12 @@ sampler_AFSS_INLA_block_binary <- nimbleFunction(
     existingINLA          <- extractControlElement(control, 'fit.inla',                   NULL)
     ## control list extraction
     widthVec               <- extractControlElement(control, 'sliceWidths',              'oneVec')
-    maxSteps               <- extractControlElement(control, 'sliceMaxSteps',            100)
+    maxSteps               <- extractControlElement(control, 'sliceMaxSteps',            10)
     adaptFactorMaxIter     <- extractControlElement(control, 'sliceAdaptFactorMaxIter',  15000)
     adaptFactorInterval    <- extractControlElement(control, 'sliceAdaptFactorInterval', 200)
     adaptWidthMaxIter      <- extractControlElement(control, 'sliceAdaptWidthMaxIter',   512)
     adaptWidthTolerance    <- extractControlElement(control, 'sliceAdaptWidthTolerance', 0.1)
-    maxContractions        <- extractControlElement(control, 'maxContractions',          1000)
+    maxContractions        <- extractControlElement(control, 'maxContractions',          500)
     maxContractionsWarning <- extractControlElement(control, 'maxContractionsWarning',   TRUE)
     eps <- 1e-15
 
