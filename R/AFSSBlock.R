@@ -562,8 +562,8 @@ sampler_AFSS_INLAlatent_block <- nimbleFunction(
 
 #' @rdname samplers
 #' @export
-sampler_AF_slice_alternative <- nimbleFunction(
-  name = 'sampler_AF_slice_alternative',
+sampler_AF_slice_binary <- nimbleFunction(
+  name = 'sampler_AF_slice_binary',
   contains = sampler_BASE,
   setup = function(model, mvSaved, target, control) {
     ## control list extraction
