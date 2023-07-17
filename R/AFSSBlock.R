@@ -568,12 +568,12 @@ sampler_AF_slice_alternative <- nimbleFunction(
   setup = function(model, mvSaved, target, control) {
     ## control list extraction
     widthVec               <- extractControlElement(control, 'sliceWidths',              'oneVec')
-    maxSteps               <- extractControlElement(control, 'sliceMaxSteps',            100)
+    maxSteps               <- extractControlElement(control, 'sliceMaxSteps',            10)
     adaptFactorMaxIter     <- extractControlElement(control, 'sliceAdaptFactorMaxIter',  15000)
     adaptFactorInterval    <- extractControlElement(control, 'sliceAdaptFactorInterval', 200)
     adaptWidthMaxIter      <- extractControlElement(control, 'sliceAdaptWidthMaxIter',   512)
     adaptWidthTolerance    <- extractControlElement(control, 'sliceAdaptWidthTolerance', 0.1)
-    maxContractions        <- extractControlElement(control, 'maxContractions',          1000)
+    maxContractions        <- extractControlElement(control, 'maxContractions',          5)
     maxContractionsWarning <- extractControlElement(control, 'maxContractionsWarning',   TRUE)
     eps <- 1e-15
     ## node list generation
@@ -584,7 +584,7 @@ sampler_AF_slice_alternative <- nimbleFunction(
     if(!is.integer(finalTargetIndex) | length(finalTargetIndex) != 1 | is.na(finalTargetIndex[1]))   stop('problem with target node in AF_slice sampler')
     calcNodesProposalStage <- calcNodes[1:finalTargetIndex]
     calcNodesDepStage <- calcNodes[-(1:finalTargetIndex)]
-    out <- model$calculate(calcNodesProposalStage)
+    out <- 0#model$calculate(calcNodesProposalStage)
     ## numeric value generation
     d                  <- length(targetAsScalar)
     discrete           <- sapply(targetAsScalar, function(x) model$isDiscrete(x))
@@ -666,7 +666,7 @@ sampler_AF_slice_alternative <- nimbleFunction(
       nimCopy(from = mvSaved, to = model, row = 1, nodes = copyNodesDeterm, logProb = FALSE)
       nimCopy(from = mvSaved, to = model, row = 1, nodes = copyNodesStoch, logProbOnly = TRUE)
     } else {
-      out <<- model$calculate(calcNodesProposalStage)
+      out <<- 0#model$calculate(calcNodesProposalStage)
       ##model$calculate(calcNodesPPomitted)
       nimCopy(from = model, to = mvSaved, row = 1, nodes = calcNodesProposalStage, logProb = TRUE)
       nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesDeterm, logProb = FALSE)
@@ -687,7 +687,7 @@ sampler_AF_slice_alternative <- nimbleFunction(
               }
             }#floor(targetValues[i])
       values(model, target) <<- targetValues
-      lp <- out#model$calculate(calcNodesProposalStage)
+      lp <- model$calculate(calcNodesProposalStage)
       if(lp == -Inf) return(lp)
       lp <- lp + model$calculate(calcNodesDepStage)
       returnType(double())
