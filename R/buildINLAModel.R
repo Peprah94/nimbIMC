@@ -64,7 +64,7 @@ inlaFStep <- nimbleFunction(
    # vals <-
     #ll <-
     #copy(mvEWSamples, model, nodes = fixedVals, row = 1)
-    errorIndicate <- inherits(try(res <- nimbleINLA(x, y, beta= beta, fixedVals,  family = fam), silent = TRUE), "try-error")
+    res <- nimbleINLA(x, y, beta= beta, fixedVals,  family = fam)
 
 #interInModel= interInModel,
     # save results
@@ -96,12 +96,11 @@ inlaFStep <- nimbleFunction(
 #print(vals)
 #}
 #}
+    lll <- res[1,1]
 
-   if(errorIndicate){
-     lll <- -Inf
+   if(lll == -Inf){
      copy(mvEWSamples, model, nodes = fixedVals, row = 1)
    }else{
-     lll <- res[1,1]
      saveResults(fixedVals, res)
      copy( model, mvEWSamples, nodes = fixedVals, row = 1)
    }
@@ -200,8 +199,7 @@ inlaFStepMultiple <- nimbleFunction(
     #ll <-
     #copy(mvEWSamples, model, nodes = fixedVals, row = 1)
     #res <- nimbleINLA(x, y, beta= beta, fixedVals,  family = fam)
-    errorIndicate <- inherits(try(res <- nimbleINLA(x, y, beta= beta, fixedVals,  family = fam), silent = TRUE), "try-error")
-    #interInModel= interInModel,
+    res <- nimbleINLA(x, y, beta= beta, fixedVals,  family = fam)
     # save results
     # if(!mult){
     #vals <- res[1, 2:N]
@@ -232,11 +230,11 @@ inlaFStepMultiple <- nimbleFunction(
     #}
     #}
 
-    if(errorIndicate){
-      lll <- -Inf
+    lll <- res[1,1]
+
+    if(lll == -Inf){
       copy(mvEWSamples, model, nodes = fixedVals, row = 1)
     }else{
-      lll <- res[1,1]
       saveResults(fixedVals, res)
       copy( model, mvEWSamples, nodes = fixedVals, row = 1)
     }
