@@ -64,7 +64,7 @@ inlaFStep <- nimbleFunction(
    # vals <-
     #ll <-
     #copy(mvEWSamples, model, nodes = fixedVals, row = 1)
-    res <- try(nimbleINLA(x, y, beta= beta, fixedVals,  family = fam), silent = TRUE)
+    errorIndicate <- inherits(try(res <- nimbleINLA(x, y, beta= beta, fixedVals,  family = fam), silent = TRUE), "try-error")
 
 #interInModel= interInModel,
     # save results
@@ -97,7 +97,14 @@ inlaFStep <- nimbleFunction(
 #}
 #}
 
-    lll <- res[1,1]
+   if(errorIndicate){
+     lll <- -Inf
+     copy(mvEWSamples, model, nodes = fixedVals, row = 1)
+   }else{
+     lll <- res[1,1]
+     saveResults(fixedVals, res)
+     copy( model, mvEWSamples, nodes = fixedVals, row = 1)
+   }
    #if(mult) values(model, fixedVals) <<- res[1, 2:length(fixedVals)]
     # if(mult == TRUE){
     # for(i in seq_along(fixedVals)){
@@ -108,8 +115,7 @@ inlaFStep <- nimbleFunction(
    # if(mult == FALSE) mvEWSamples[fixedVals, 1] <<- res[1, 2]
      #values(model, fixedVals) <<- res[1, 2]
 
-        saveResults(fixedVals, res)
-      copy( model, mvEWSamples, nodes = fixedVals, row = 1)
+
       out <- lll
     #values(model, fixedVals) <<- vals
     #model[[fixedVals]] <<- vals
@@ -193,8 +199,8 @@ inlaFStepMultiple <- nimbleFunction(
     # vals <-
     #ll <-
     #copy(mvEWSamples, model, nodes = fixedVals, row = 1)
-    res <- nimbleINLA(x, y, beta= beta, fixedVals,  family = fam)
-
+    #res <- nimbleINLA(x, y, beta= beta, fixedVals,  family = fam)
+    errorIndicate <- inherits(try(res <- nimbleINLA(x, y, beta= beta, fixedVals,  family = fam), silent = TRUE), "try-error")
     #interInModel= interInModel,
     # save results
     # if(!mult){
@@ -226,7 +232,16 @@ inlaFStepMultiple <- nimbleFunction(
     #}
     #}
 
-    lll <- res[1,1]
+    if(errorIndicate){
+      lll <- -Inf
+      copy(mvEWSamples, model, nodes = fixedVals, row = 1)
+    }else{
+      lll <- res[1,1]
+      saveResults(fixedVals, res)
+      copy( model, mvEWSamples, nodes = fixedVals, row = 1)
+    }
+
+   # lll <- res[1,1]
     #if(mult) values(model, fixedVals) <<- res[1, 2:length(fixedVals)]
     # if(mult == TRUE){
     # for(i in seq_along(fixedVals)){
@@ -237,8 +252,8 @@ inlaFStepMultiple <- nimbleFunction(
     # if(mult == FALSE) mvEWSamples[fixedVals, 1] <<- res[1, 2]
     #values(model, fixedVals) <<- res[1, 2]
 
-      saveResults(fixedVals, res)
-      copy( model, mvEWSamples, nodes = fixedVals, row = 1)
+      #saveResults(fixedVals, res)
+      #copy( model, mvEWSamples, nodes = fixedVals, row = 1)
       out <- lll
 
     #values(model, fixedVals) <<- vals
