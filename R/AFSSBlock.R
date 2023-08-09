@@ -70,6 +70,7 @@ sampler_AFSS_INLA_block <- nimbleFunction(
     existingINLA          <- extractControlElement(control, 'fit.inla',                   NULL)
     ## control list extraction
     widthVec               <- extractControlElement(control, 'sliceWidths',              'oneVec')
+    targetMCMC               <- extractControlElement(control, 'targetMCMC',              NULL)
     maxSteps               <- extractControlElement(control, 'sliceMaxSteps',            100)
     adaptFactorMaxIter     <- extractControlElement(control, 'sliceAdaptFactorMaxIter',  15000)
     adaptFactorInterval    <- extractControlElement(control, 'sliceAdaptFactorInterval', 200)
@@ -129,8 +130,14 @@ sampler_AFSS_INLA_block <- nimbleFunction(
     fixedValsDep <- model$getDependencies(fixedVals)
 
 
-    my_particleFilter <- buildINLAmodel(model, fam, x,y = y,control = list(fit.inla = existingINLA,
-                                                                       fixedVals = fixedVals))
+    my_particleFilter <- buildINLAmodel(model, fam, x,y = y,control = list(fit.inla = existingINLA,fixedVals = fixedVals))
+
+  #Target values for inla
+  if(is.null(targetMCMC)){targetINLA <- targetAsScalar
+  }else{
+    targetMCMCasScalar <- model$expandNodeNames(targetMCMC, returnScalarComponents = TRUE)
+      targetINLA <- c(targetMCMCasScalar, targetAsScalar)}
+
     #targetVal <- values(model, targetAsScalar)
     particleMV <- my_particleFilter$mvEWSamples
 out <- -Inf
@@ -194,7 +201,7 @@ out <- -Inf
       nimCopy(from = mvSaved, to = model, row = 1, nodes = copyNodesStoch, logProbOnly = TRUE)
       nimCopy(from = mvSaved, to = model, row = 1, nodes = fixedValsDep, logProb = TRUE)
     } else {
-      out <<- my_particleFilter$run(beta = values(model,  targetAsScalar))
+      out <<- my_particleFilter$run(beta = values(model,  targetINLA))
       copy(particleMV, model, fixedVals, fixedVals, row = 1)
       #calculate(model, fixedValsDep)
       model$calculate()

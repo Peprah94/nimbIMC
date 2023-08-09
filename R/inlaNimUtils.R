@@ -24,6 +24,7 @@ sampler_RW_INLA_block <- nimbleFunction(
     adaptFactorExponent <- extractControlElement(control, 'adaptFactorExponent',  0.8)
     x                   <- extractControlElement(control, 'x',  double())
     y                   <- extractControlElement(control, 'y',  character())
+    targetMCMC               <- extractControlElement(control, 'targetMCMC',              NULL)
     mu                  <- extractControlElement(control, 'mu',  NULL)
     #obsVars <- extractControlElement(control, 'obsVar',  character())
     fixedVals           <- extractControlElement(control, 'fixedVals',  double())
@@ -89,8 +90,17 @@ sampler_RW_INLA_block <- nimbleFunction(
                                         x,
                                         y = y,
                                         control = list(fit.inla = existingINLA,
-                                                                   fixedVals = fixedVals))
-    targetVal <- nimble::values(model, targetAsScalar)
+                                                       fixedVals = fixedVals))
+
+                                                       #Target values for inla
+if(is.null(targetMCMC)){
+  targetVal <- nimble::values(model, targetAsScalar)
+}else{
+targetMCMCasScalar <- model$expandNodeNames(targetMCMC, returnScalarComponents = TRUE)
+
+targetVal <- nimble::values(model, c(targetMCMCasScalar, targetAsScalar))
+   }
+
     particleMV <- my_particleFilter$mvEWSamples
 
     print(latentSamp)
