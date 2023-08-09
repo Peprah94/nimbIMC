@@ -7,12 +7,12 @@
 buildINLAmodel(model, fam, x, y, control)
 }
 \arguments{
-\item{model}{A nimble model object, typically representing a state 
+\item{model}{A nimble model object, typically representing a state
 space model or a hidden Markov model.}
 
 \item{control}{A list specifying different control options for the particle filter.  Options are described in the details section below.}
 
-\item{nodes}{A character vector specifying the latent model nodes 
+\item{nodes}{A character vector specifying the latent model nodes
 over which the particle filter will stochastically integrate to
 estimate the log-likelihood function.  All provided nodes must be stochastic.
 Can be one of three forms: a variable name, in which case all elements in the variable
@@ -31,31 +31,31 @@ Each of the \code{control()} list options are described in detail here:
  \item{resamplingMethod}{The type of resampling algorithm to be used within the particle filter. Can choose between \code{'default'} (which uses NIMBLE's \code{rankSample()} function),  \code{'systematic'}, \code{'stratified'}, \code{'residual'}, and \code{'multinomial'}.  Defaults to \code{'default'}.  Resampling methods other than \code{'default'} are currently experimental.}
  \item{saveAll}{Indicates whether to save state samples for all time points (TRUE), or only for the most recent time point (FALSE)}
  \item{smoothing}{Decides whether to save smoothed estimates of latent states, i.e., samples from f(x[1:t]|y[1:t]) if \code{smoothing = TRUE}, or instead to save filtered samples from f(x[t]|y[1:t]) if \code{smoothing = FALSE}.  \code{smoothing = TRUE} only works if \code{saveAll = TRUE}.}
- \item{timeIndex}{An integer used to manually specify which dimension of the latent state variable indexes time.  
+ \item{timeIndex}{An integer used to manually specify which dimension of the latent state variable indexes time.
  Only needs to be set if the number of time points is less than or equal to the size of the latent state at each time point.}
  \item{initModel}{A logical value indicating whether to initialize the model before running the filtering algorithm.  Defaults to TRUE.}
 }
 
- The bootstrap filter starts by generating a sample of estimates from the 
- prior distribution of the latent states of a state space model.  At each time point, these particles are propagated forward 
- by the model's transition equation.  Each particle is then given a weight 
- proportional to the value of the observation equation given that particle. 
+ The bootstrap filter starts by generating a sample of estimates from the
+ prior distribution of the latent states of a state space model.  At each time point, these particles are propagated forward
+ by the model's transition equation.  Each particle is then given a weight
+ proportional to the value of the observation equation given that particle.
  The weights are used to draw an equally-weighted sample of the particles at this time point.
  The algorithm then proceeds
- to the next time point.  Neither the transition nor the observation equations are required to 
- be normal for the bootstrap filter to work.   
- 
+ to the next time point.  Neither the transition nor the observation equations are required to
+ be normal for the bootstrap filter to work.
+
  The resulting specialized particle filter algorthm will accept a
  single integer argument (\code{m}, default 10,000), which specifies the number
- of random \'particles\' to use for estimating the log-likelihood.  The algorithm 
+ of random \'particles\' to use for estimating the log-likelihood.  The algorithm
  returns the estimated log-likelihood value, and saves
  unequally weighted samples from the posterior distribution of the latent
  states in the \code{mvWSamples} modelValues object, with corresponding logged weights in \code{mvWSamples['wts',]}.
  An equally weighted sample from the posterior can be found in the \code{mvEWSamples} \code{modelValues} object.
- 
- Note that if the \code{thresh} argument is set to a value less than 1, resampling may not take place at every time point.  
+
+ Note that if the \code{thresh} argument is set to a value less than 1, resampling may not take place at every time point.
  At time points for which resampling did not take place, \code{mvEWSamples} will not contain equally weighted samples.
- To ensure equally weighted samples in the case that \code{thresh < 1}, we recommend resampling from \code{mvWSamples} at each time point 
+ To ensure equally weighted samples in the case that \code{thresh < 1}, we recommend resampling from \code{mvWSamples} at each time point
  after the filter has been run, rather than using \code{mvEWSamples}.
 }
 \section{\code{returnESS()} Method}{
@@ -89,17 +89,6 @@ my_BootF <- buildBootstrapFilter(model, 'x',
 }
 \references{
 Gordon, N.J., D.J. Salmond, and A.F.M. Smith. (1993). Novel approach to nonlinear/non-Gaussian Bayesian state estimation. \emph{IEEE Proceedings F (Radar and Signal Processing)}. Vol. 140. No. 2. IET Digital Library, 1993.
-}
-\seealso{
-Other particle filtering methods: 
-\code{\link{buildAuxiliaryFilterNew}},
-\code{\link{buildAuxiliaryFilterUpdate}},
-\code{\link{buildBootstrapFilterNew}},
-\code{\link{buildBootstrapFilterUpdate}},
-\code{\link{compareModelsIndividualPars}()},
-\code{\link{compareModelsMeanPlots}()},
-\code{\link{compareModelsPars}()},
-\code{\link{compareModelsPlots}()}
 }
 \author{
 Daniel Turek and Nicholas Michaud
