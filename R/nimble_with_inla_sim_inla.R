@@ -193,6 +193,7 @@ INLAWiNim <- function(data,
     mcmcconf$addSampler(target = parametersForSamplerChange,
                         type = newSampler,
                         control = newSamplerControl)
+    mcmcconf$printSamplers()
   }
 
   Rmcmc <- nimble::buildMCMC(mcmcconf)
