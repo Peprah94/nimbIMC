@@ -48,7 +48,7 @@ fit.inlaAlt <- function(x ,
     intercept = 1
   }
   #precision = INLA::inla.emarginal(function(x) x,res$marginals.hyper[[1]])
-  precision <-  samples[[1]]$hyperpar
+  precision <-  inla.hyperpar.sample(1, res)
   ret <- cbind(intercept, precision, fitted_values)
   return(ret)
 }
@@ -180,11 +180,11 @@ INLAWiNim <- function(data,
     mcmcconf <- nimble::configureMCMC(Cmwtc,
                                       monitors = parametersToMonitor,
                                       control = mcmcControl,
-                                      enableWAIC = TRUE)
+                                      enableWAIC = FALSE)
   }else{
     mcmcconf <- nimble::configureMCMC(Cmwtc,
                                       monitors = parametersToMonitor,
-                                      enableWAIC = TRUE
+                                      enableWAIC = FALSE
     )
   }
 

@@ -38,7 +38,7 @@ INLAWiNimDataGeneratingTargetDivide <- function(data,
   family <- family
   fixedVals <- parametersToMonitor$inla
   target <- parametersToMonitor$mcmc
-  targetMCMC <- parametersToMonitor$mcmc2
+  targetMCMC <- parametersToMonitor$mcmcINLA
 
   #set up initial value
 
@@ -68,12 +68,14 @@ INLAWiNimDataGeneratingTargetDivide <- function(data,
     samplerControl$y = y
     samplerControl$fixedVals = fixedVals
     samplerControl$fam = family
-    samplerControl$targetMCMC = targetMCMC
+    #samplerControl$targetMCMC = targetMCMC
 
     # mcmc configuration
     mcmcconf$addSampler(target = targetMCMC,
                         type = inlaMCsampler,
                         control = samplerControl)
+    #mcmcconf$addSampler(target = target[1],
+     #                   type = "RW_block")
 
     mcmcconf$printSamplers(executionOrder = TRUE)
     mcmcconf$addMonitors(c(target, targetMCMC))
@@ -87,9 +89,8 @@ INLAWiNimDataGeneratingTargetDivide <- function(data,
 
     # Compile
     cmcmc <- nimble::compileNimble(Rmcmc,
-                                   project = Cmwtc,
-                                   resetFunctions = TRUE)
-    startTime <- Sys.time()
+                                   project = Cmwtc)
+  startTime <- Sys.time()
     mcmc.out <- nimble::runMCMC(cmcmc,
                                 niter = mcmcConfiguration[["n.iterations"]],
                                 nchains = mcmcConfiguration[["n.chains"]],
@@ -148,4 +149,7 @@ INLAWiNimDataGeneratingTargetDivide <- function(data,
   }
   return(retList)
 }
+
+
+#create matrix
 
