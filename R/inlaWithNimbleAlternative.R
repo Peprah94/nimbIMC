@@ -118,7 +118,9 @@ INLAWiNimDataGeneratingTargetDivide <- function(data,
                                       monitors = c(target, fixedVals, targetMCMC))
 
     mcmcconf$printSamplers()
-
+    if(!is.null(parametersToMonitor$additionalPars)){
+      mcmcconf$addMonitors(parametersToMonitor$additionalPars)
+    }
     #build model
     Rmcmc <- nimble::buildMCMC(mcmcconf)
 

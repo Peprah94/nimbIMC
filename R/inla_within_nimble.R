@@ -1,6 +1,3 @@
-
-
-
 #' Fitting INLA within NIMBLE for Data Generating process
 #'
 #' This function sets the paramters in the appropriate manner to be used by the
@@ -122,10 +119,18 @@ INLAWiNimDataGenerating <- function(data,
 
     # Add new samplers
     mcmcconf$removeSampler(target)
-    mcmcconf$addSampler(target, type = inlaMCsampler)
+   # mcmcconf$removeSampler("beta")
+    #mcmcconf$addSampler("beta", type = inlaMCsampler)
+    mcmcconf$addSampler(target, type = inlaMCsampler,
+                        control = samplerControl)
 
+    mcmcconf$printSamplers(executionOrder = TRUE)
+
+    if(!is.null(parametersToMonitor$additionalPars)){
+      mcmcconf$addMonitors(parametersToMonitor$additionalPars)
+    }
     #build model
-    Rmcmc <- nimble::buildMCMC(mcmcconf)
+    Rmcmc <- nimble::buildMCMC(mcmcconf, useConjugacy = FALSE)
 
     # Compile
     cmcmc <- nimble::compileNimble(Rmcmc,
@@ -153,4 +158,157 @@ INLAWiNimDataGenerating <- function(data,
     retList$mcmc <-  ret
   }
   return(retList)
+}
+
+
+#' Fitting INLA within NIMBLE
+#'
+#' This function sets the paramters in the appropriate manner to be used by the
+#' simulation function
+#'
+#' @param data, code, family,n.iterations, n.chains, n.burnin
+#'
+#' @return MCMC output
+#' @export
+INLAWiNim <- function(data,
+                      code,
+                      fam,
+                      modelData,
+                      modelConstants,
+                      modelInits,
+                      parametersToMonitor = c("beta", "sigma", "intercept"),
+                      mcmcControl = NULL,
+                      mcmcSamplerChange = FALSE,
+                      parametersForSamplerChange = NULL,
+                      newSampler = NULL,
+                      newSamplerControl = NULL,
+                      mcmcConfiguration = list(n.chains = 1,
+                                               n.iterations = 10,
+                                               n.burnin = 0,
+                                               n.thin = 1,
+                                               setSeed = TRUE,
+                                               samples=TRUE,
+                                               samplesAsCodaMCMC = TRUE,
+                                               summary = TRUE,
+                                               WAIC = TRUE)){
+
+
+
+
+  initsList <- modelInits()
+
+  #Create the model in nimble
+  if(!is.null(newSampler) && newSampler == "hmc"){
+    mwtc <- nimble::nimbleModel(code,
+                                data = modelData,
+                                constants = modelConstants,
+                                inits = initsList,
+                                buildDerivs = TRUE)
+
+    Cmwtc <- nimble::compileNimble(mwtc,
+                                   showCompilerOutput = FALSE)
+
+    mcmcconf <- nimbleHMC::configureHMC(mwtc,
+                                        monitors = parametersToMonitor,
+                                        enableWAIC = FALSE)
+
+    Rmcmc <- nimble::buildMCMC(mcmcconf)
+
+    # Compile
+    cmcmc <- nimble::compileNimble(Rmcmc,
+                                   project = mwtc)
+  }else{
+    mwtc <- nimble::nimbleModel(code,
+                                data = modelData,
+                                constants = modelConstants,
+                                inits = initsList)
+
+    # Create the model in C
+    Cmwtc <- nimble::compileNimble(mwtc,
+                                   showCompilerOutput = FALSE) #Have issues compiling
+
+    if(!is.null(mcmcControl)){
+      mcmcconf <- nimble::configureMCMC(Cmwtc,
+                                        monitors = parametersToMonitor,
+                                        control = mcmcControl,
+                                        enableWAIC = FALSE)
+    }else{
+      mcmcconf <- nimble::configureMCMC(Cmwtc,
+                                        monitors = parametersToMonitor,
+                                        enableWAIC = FALSE
+      )
+    }
+
+    if(mcmcSamplerChange == TRUE){
+      mcmcconf$removeSamplers(parametersForSamplerChange)
+      mcmcconf$addSampler(target = parametersForSamplerChange,
+                          type = newSampler,
+                          control = newSamplerControl)
+      mcmcconf$printSamplers()
+      Rmcmc <- nimble::buildMCMC(mcmcconf)
+    }
+    # Compile
+    cmcmc <- nimble::compileNimble(Rmcmc,
+                                   project = Cmwtc,
+                                   resetFunctions = TRUE)
+  }
+
+  # Run the MCMC
+  startTime <- Sys.time()
+  mcmc.out <- nimble::runMCMC(cmcmc,
+                              niter = mcmcConfiguration[["n.iterations"]],
+                              nchains = mcmcConfiguration[["n.chains"]],
+                              nburnin = mcmcConfiguration[["n.burnin"]],
+                              #inits = initsList,
+                              thin = mcmcConfiguration[["n.thin"]],
+                              setSeed = mcmcConfiguration[["setSeed"]],
+                              samples = mcmcConfiguration[["samples"]],
+                              samplesAsCodaMCMC = mcmcConfiguration[["samplesAsCodaMCMC"]],
+                              summary = mcmcConfiguration[["summary"]],
+                              WAIC = mcmcConfiguration[["WAIC"]])
+
+  endTime <- Sys.time()
+  timeTaken <- difftime(endTime, startTime, units = "secs")
+  #Output from the MCMC
+  output <- mcmc.out$summary
+  output
+
+  #cmcmc$
+
+  # MCMCtrace(object = mcmc.out,
+  #           pdata = FALSE,
+  #           ind = TRUE,
+  #           Rhat = TRUE, # add Rhat
+  #           n.eff = TRUE, # add eff sample size
+  #           params = "theta")
+
+
+
+  #set.seed(1)
+  #cmcmc$run(niter = 50)
+  #cmcmc$Rmcmc$run(niter=2400, nburnin=0)
+  #mcmcconf$printSamplers()
+  if(fam == "gaussian"){
+    #scales <- cmcmc$samplerFunctions[[1]]$getScaleHistory()
+    #accept <- cmcmc$samplerFunctions[[1]]$getAcceptanceHistory()
+    scales <- NA
+    accept <- NA
+    prop_history <- NA
+    #prop_history <- cmcmc$samplerFunctions[[1]]$getPropCovHistory()
+  }else{
+    scales <- NA
+    accept <- NA
+    prop_history <- NA
+  }
+
+
+  returnList = list(output=output,
+                    scales=scales,
+                    accept=accept,
+                    prop_history=prop_history,
+                    mcmc.out=mcmc.out,
+                    timeTaken = timeTaken)
+
+
+  return(returnList)
 }
