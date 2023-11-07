@@ -17,7 +17,10 @@ INLAWiNimDataGenerating <- function(data,
                                     nimbleINLA,
                                     inlaMCMC = c("inla", "mcmc", "inlamcmc"),
                                     inlaMCsampler = "RW_INLA_block",
-                                    samplerControl = list(),
+                                    samplerControl = list(proposal = "normal",
+                                                          initMean = NULL,
+                                                          initCov = NULL,
+                                                          nCores = 2),
                                     parametersToMonitor = list(mcmc = c("mcmc"),
                                                                inla = c("inla"),
                                                                additionalPars = NULL),
@@ -101,7 +104,7 @@ INLAWiNimDataGenerating <- function(data,
                                 WAIC = mcmcConfiguration[["WAIC"]])
     endTime <- Sys.time()
     timeTaken <- difftime(endTime, startTime, units = "secs")
-      #as.numeric(endTime - startTime)
+    #as.numeric(endTime - startTime)
 
     ret <- list(mcmc.out = mcmc.out,
                 timeTaken = timeTaken)
@@ -119,7 +122,7 @@ INLAWiNimDataGenerating <- function(data,
 
     # Add new samplers
     mcmcconf$removeSampler(target)
-   # mcmcconf$removeSampler("beta")
+    # mcmcconf$removeSampler("beta")
     #mcmcconf$addSampler("beta", type = inlaMCsampler)
     mcmcconf$addSampler(target, type = inlaMCsampler,
                         control = samplerControl)
@@ -156,6 +159,64 @@ INLAWiNimDataGenerating <- function(data,
 
     #save results for MCMC
     retList$mcmc <-  ret
+  }
+
+  if(inlaMCMC %in%"importanceSampling"){
+    samplerControl$nimbleINLA <- nimbleINLA
+    samplerControl$family <- family
+    samplerControl$fixedVals <- fixedVals
+    samplerControl$timeIndex <- ceiling(mcmcConfiguration[["n.iterations"]]/(mcmcConfiguration[["n.chains"]]))
+    samplerControl$nSteps <- mcmcConfiguration[["n.chains"]]
+    rr <- inlaIS(mwtc,
+                 family,
+                 x,
+                 y,
+                 target,
+                 control = samplerControl)
+
+    #compile Model
+    compileModel <- compileNimble(mwtc, rr)
+
+    startTime <- Sys.time()
+    out <- compileModel$rr$run()
+    endTime <- Sys.time()
+    timeTaken <- difftime(endTime, startTime, units = "secs")
+
+    mcmc.matrix <- as.matrix(compileModel$rr$mvEWSamples)
+
+    indices <- lapply(as.list(c("gamma", "wts")), function(x){
+      ret <- startsWith(colnames(mcmc.matrix), x)
+      ret <- which(ret == TRUE)
+      return(ret)
+    })%>%
+      do.call("c", .)
+
+    nburnin = mcmcConfiguration[["n.burnin"]]
+    res <- mcmc.matrix[-(1:nburnin), -indices]
+
+    #as samplesAsCodaMCMC
+    samplesList1 <- coda::as.mcmc.list(coda::as.mcmc(res))
+
+    #save samples and summary
+    mcmc.out <- list()
+    #Estimating summary
+    summaryObject <- lapply(samplesList1, samplesSummary)
+    names(summaryObject) <- paste0('chain', 1)
+    summaryObject$all.chains <- samplesSummary(do.call('rbind', samplesList1))
+    mcmc.out$samples <- samplesList1
+    mcmc.out$summary <- summaryObject
+
+    ret <- list(mcmc.out = mcmc.out,
+                timeTaken = timeTaken,
+                ess = out)
+
+    #save inlamcmc results
+    retList$isINLA <- ret
+
+    #colnames(mcmc.matrix)%in%grepl(target, colnames(mcmc.matrix))
+    #[, mwtc$expandNodeNames(nodes = c(target, fixedVals))]
+    #run function
+    # out <-
   }
   return(retList)
 }

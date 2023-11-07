@@ -44,6 +44,13 @@ inits <-  function(){list(beta =c(1,1)
 )
 }
 
+initsList <- inits()
+
+#
+model <- nimble::nimbleModel(code,
+                    data = idm_data,
+                    constants = constants,
+                    inits = initsList)
 # Fit the INLA within Nimble model
 inlaNimBivariate = INLAWiNim (data = df, code = code,
                               modelData = idm_data,
