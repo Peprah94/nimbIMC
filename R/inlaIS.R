@@ -143,6 +143,7 @@ Nt <- m # Number of samples at Nt
       #print(gamma)
       values(model, beta) <<- betaVals
       loglike <- res[i,1]*model$calculate(beta)
+      #print(loglike)
       wts[i] <- (loglike)/(gamma[i]/(iNode*timeIndex))
       #print(99)
       mvWSamples["logLike",i][iNode] <<- loglike
@@ -187,7 +188,7 @@ betaEstsUpd[k,(nBetaSims+1)] <<- wts[i]
         gammaUpd <- ret + (m * priorDist)
         mvEWSamples["gamma",i][t] <<-  gammaUpd
         mvEWSamples["wts",i][t] <<- (mvEWSamples["logLike",i][t])/(gammaUpd/(m * iNode))
-        print(indx)
+        #print(indx)
          }
           betaEstsUpd[indx,1:nBetaSims] <<- betaValsNew
           betaEstsUpd[indx,(nBetaSims+1)] <<- mvEWSamples["wts",i][t]

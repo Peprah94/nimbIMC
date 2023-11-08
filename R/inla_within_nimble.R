@@ -184,7 +184,7 @@ INLAWiNimDataGenerating <- function(data,
 
     mcmc.matrix <- as.matrix(compileModel$rr$mvEWSamples)
 
-    indices <- lapply(as.list(c("gamma", "wts")), function(x){
+    indices <- lapply(as.list(c("gamma", "wts", "logLike")), function(x){
       ret <- startsWith(colnames(mcmc.matrix), x)
       ret <- which(ret == TRUE)
       return(ret)

@@ -214,16 +214,16 @@ covariate = data$x
 x <- covariate
 model <- mwtc
 
-control = list(nimbleINLA = nimbleINLA,
-                       fixedVals = c("a", "sigma"),
-                      proposal = "normal",
-                      initMean = c(0,0),
-                      initCov = NULL,
-                      timeIndex = 3,
-                      nSteps = 20,
-                      nCores = 2,
-                      dfTdist = 3)
-y = "y"; target = "beta"
+# control = list(nimbleINLA = nimbleINLA,
+#                        fixedVals = c("a", "sigma"),
+#                       proposal = "normal",
+#                       initMean = c(0,0),
+#                       initCov = NULL,
+#                       timeIndex = 3,
+#                       nSteps = 20,
+#                       nCores = 2,
+#                       dfTdist = 3)
+# y = "y"; target = "beta"
 rr <- inlaIS(mwtc, "gaussian", x, y = "y", target = "beta",
        control = list(nimbleINLA = nimbleINLA,
                        fixedVals = c("a", "sigma"),
@@ -235,270 +235,28 @@ rr <- inlaIS(mwtc, "gaussian", x, y = "y", target = "beta",
                       nCores = 2,
                       dfTdist = 3))
 
-compileModel <- compileNimble(mwtc, rr)
-
-
-out <- compileModel$rr$run()
-
-
-#return results
-compileModel$rr$mvEWSamples["beta"]
-compileModel$rr$mvEWSamples["a"]
-compileModel$rr$mvEWSamples["sigma"]
-compileModel$rr$mvEWSamples["wts"]
+# compileModel <- compileNimble(mwtc, rr)
+# 
+# 
+# out <- compileModel$rr$run()
+# 
+# 
+# #return results
+# compileModel$rr$mvEWSamples["beta"]
+# compileModel$rr$mvEWSamples["a"]
+# compileModel$rr$mvEWSamples["sigma"]
+# compileModel$rr$mvEWSamples["wts"]
 ```
 
 
-```{r}
-  data = c("y")
-                        covariate = data$x
-                        code = code
-                        family = "gaussian"
-                        modelData = idm_data
-                        modelConstants = constants
-                        modelInits = inits
-                        nimbleINLA = nimbleINLA
-                        inlaMCMC = "importanceSampling"
-                        #inlaMCsampler = samplers[i]
-                        samplerControl = list(scale = 0.75,
-                                              #propCov = diag((1/0.75^2), 2),
-                                              adaptive = FALSE,
-                                              sliceMaxSteps = 30)
-                        parametersToMonitor = list(mcmc = c("beta"),
-                                                   inla = c("a", "sigma"))
-                        mcmcConfiguration = list(n.chains = 3,
-                                                 n.iterations = 12,
-                                                 n.burnin = 5500,
-                                                 n.thin = 3,
-                                                 setSeed = TRUE,
-                                                 samples=TRUE,
-                                                 samplesAsCodaMCMC = TRUE,
-                                                 summary = TRUE,
-                                                 WAIC = FALSE)
-                        
-```
-
-
-```{r}
-INLAWiNimDataGenerating <- function(data,
-                                    covariate,
-                                    code,
-                                    family,
-                                    modelData,
-                                    modelConstants,
-                                    modelInits,
-                                    nimbleINLA,
-                                    inlaMCMC = c("inla", "mcmc", "inlamcmc"),
-                                    inlaMCsampler = "RW_INLA_block",
-                                    samplerControl = list(proposal = "normal",
-                                                          initMean = NULL,
-                                                          initCov = NULL,
-                                                          nCores = 2),
-                                    parametersToMonitor = list(mcmc = c("mcmc"),
-                                                               inla = c("inla"),
-                                                               additionalPars = NULL),
-                                    mcmcConfiguration = list(n.chains = 1,
-                                                             n.iterations = 10,
-                                                             n.burnin = 0,
-                                                             n.thin = 1,
-                                                             setSeed = TRUE,
-                                                             samples=TRUE,
-                                                             samplesAsCodaMCMC = TRUE,
-                                                             summary = TRUE,
-                                                             WAIC = FALSE)){
 
 
 
-  #extract necessary variables
-  x <- covariate # must be a matrix
-  y <- data # must be a vector
-  family <- family
-  fixedVals <- parametersToMonitor$inla
-  target <- parametersToMonitor$mcmc
-
-  #set up initial value
-  initsList <- modelInits()
-
-  #Create the model in nimble
-  mwtc <- nimble::nimbleModel(code,
-                              data = modelData,
-                              constants = modelConstants,
-                              inits = initsList)
-
-  # Create the model in C
-  Cmwtc <- nimble::compileNimble(mwtc,
-                                 showCompilerOutput = FALSE) #Have issues compiling
-
-  #create list to return
-  retList <- list()
-  # Fit INLAMCMC
-
-  if(inlaMCMC %in% "inlamcmc"){
-    mcmcconf <- nimble::configureMCMC(Cmwtc,
-                                      nodes = NULL)
-
-    # setting sampler controls
-    samplerControl$fit.inla = nimbleINLA
-    samplerControl$x = x
-    samplerControl$y = y
-    samplerControl$fixedVals = fixedVals
-    samplerControl$fam = family
-
-    # mcmc configuration
-    mcmcconf$addSampler(target = target,
-                        type = inlaMCsampler,
-                        control = samplerControl)
-
-    mcmcconf$printSamplers(executionOrder = TRUE)
-    mcmcconf$addMonitors(target)
-
-    if(!is.null(parametersToMonitor$additionalPars)){
-      mcmcconf$addMonitors(parametersToMonitor$additionalPars)
-    }
-
-    #build model
-    Rmcmc <- nimble::buildMCMC(mcmcconf)
-
-    # Compile
-    cmcmc <- nimble::compileNimble(Rmcmc,
-                                   project = Cmwtc,
-                                   resetFunctions = TRUE)
-    startTime <- Sys.time()
-    mcmc.out <- nimble::runMCMC(cmcmc,
-                                niter = mcmcConfiguration[["n.iterations"]],
-                                nchains = mcmcConfiguration[["n.chains"]],
-                                nburnin = mcmcConfiguration[["n.burnin"]],
-                                #inits = initsList,
-                                thin = mcmcConfiguration[["n.thin"]],
-                                setSeed = mcmcConfiguration[["setSeed"]],
-                                samples = mcmcConfiguration[["samples"]],
-                                samplesAsCodaMCMC = mcmcConfiguration[["samplesAsCodaMCMC"]],
-                                summary = mcmcConfiguration[["summary"]],
-                                WAIC = mcmcConfiguration[["WAIC"]])
-    endTime <- Sys.time()
-    timeTaken <- difftime(endTime, startTime, units = "secs")
-      #as.numeric(endTime - startTime)
-
-    ret <- list(mcmc.out = mcmc.out,
-                timeTaken = timeTaken)
-
-    #save inlamcmc results
-    retList$inlamcmc <- ret
-  }
-
-  if(inlaMCMC %in% "mcmc"){
-    mcmcconf <- nimble::configureMCMC(Cmwtc,
-                                      monitors = c(target, fixedVals))
-
-
-    mcmcconf$printSamplers()
-
-    # Add new samplers
-    mcmcconf$removeSampler(target)
-   # mcmcconf$removeSampler("beta")
-    #mcmcconf$addSampler("beta", type = inlaMCsampler)
-    mcmcconf$addSampler(target, type = inlaMCsampler,
-                        control = samplerControl)
-
-    mcmcconf$printSamplers(executionOrder = TRUE)
-
-    if(!is.null(parametersToMonitor$additionalPars)){
-      mcmcconf$addMonitors(parametersToMonitor$additionalPars)
-    }
-    #build model
-    Rmcmc <- nimble::buildMCMC(mcmcconf, useConjugacy = FALSE)
-
-    # Compile
-    cmcmc <- nimble::compileNimble(Rmcmc,
-                                   project = Cmwtc,
-                                   resetFunctions = TRUE)
-    startTime <- Sys.time()
-    mcmc.out <- nimble::runMCMC(cmcmc,
-                                niter = mcmcConfiguration[["n.iterations"]],
-                                nchains = mcmcConfiguration[["n.chains"]],
-                                nburnin = mcmcConfiguration[["n.burnin"]],
-                                #inits = initsList,
-                                thin = mcmcConfiguration[["n.thin"]],
-                                setSeed = mcmcConfiguration[["setSeed"]],
-                                samples = mcmcConfiguration[["samples"]],
-                                samplesAsCodaMCMC = mcmcConfiguration[["samplesAsCodaMCMC"]],
-                                summary = mcmcConfiguration[["summary"]],
-                                WAIC = mcmcConfiguration[["WAIC"]])
-    endTime <- Sys.time()
-    timeTaken <- difftime(endTime, startTime, units = "secs")
-
-    ret <- list(mcmc.out = mcmc.out,
-                timeTaken = timeTaken)
-
-    #save results for MCMC
-    retList$mcmc <-  ret
-  }
-  
-  if(inlaMCMC %in%"importanceSampling"){
-    samplerControl$nimbleINLA <- nimbleINLA
-    samplerControl$family <- family
-    samplerControl$fixedVals <- fixedVals
-    samplerControl$timeIndex <- ceiling(mcmcConfiguration[["n.iterations"]]/(mcmcConfiguration[["n.chains"]]))
-    samplerControl$nSteps <- mcmcConfiguration[["n.chains"]]
-    rr <- inlaIS(mwtc, 
-                 family, 
-                 x, 
-                 y, 
-                 target,
-       control = samplerControl)
-
-    #compile Model
-    compileModel <- compileNimble(mwtc, rr)
-
- startTime <- Sys.time()
-out <- compileModel$rr$run()
-endTime <- Sys.time()
-timeTaken <- difftime(endTime, startTime, units = "secs")
-    
-mcmc.matrix <- as.matrix(compileModel$rr$mvEWSamples)
-
-indices <- lapply(as.list(c("gamma", "wts")), function(x){
-  ret <- startsWith(colnames(mcmc.matrix), x)
-  ret <- which(ret == TRUE)
-  return(ret)
-})%>%
-  do.call("c", .)
-
-nburnin = mcmcConfiguration[["n.burnin"]]
-res <- mcmc.matrix[-(1:nburnin), -indices]
-
-  #as samplesAsCodaMCMC
-  samplesList1 <- coda::as.mcmc.list(coda::as.mcmc(res))
-  
-  #save samples and summary
-  mcmc.out <- list()
-    #Estimating summary
-  summaryObject <- lapply(samplesList1, samplesSummary)
-  names(summaryObject) <- paste0('chain', 1)
-  summaryObject$all.chains <- samplesSummary(do.call('rbind', samplesList1))
-mcmc.out$samples <- samplesList1
-mcmc.out$summary <- summaryObject
-
-    ret <- list(mcmc.out = mcmc.out,
-                timeTaken = timeTaken,
-                ess = out)
-
-    #save inlamcmc results
-    retList$isINLA <- ret
-
-#colnames(mcmc.matrix)%in%grepl(target, colnames(mcmc.matrix))
-#[, mwtc$expandNodeNames(nodes = c(target, fixedVals))]
-    #run function
-   # out <- 
-  }
-  return(retList)
-}
-```
 
 **test function**
 ```{r}
 
-  inlaNimBivariate <- INLAWiNimDataGenerating(data = c("y"),
+  inlaNimBivariate <- myphdthesis::INLAWiNimDataGenerating(data = c("y"),
                         covariate = bivariateSims$x,
                         code = code,
                         family = "gaussian",
@@ -512,15 +270,15 @@ mcmc.out$summary <- summaryObject
                                               #propCov = diag((1/0.75^2), 2),
                                               adaptive = FALSE,
                                               sliceMaxSteps = 30,
-                                              initMean = c(1,-1),
-                                              initCov= 5*diag(2),
+                                              initMean = c(2,-2),
+                                              initCov= diag(2),
                                               proposal = "normal",
                                               nCores = 4),
                         parametersToMonitor = list(mcmc = c("beta"),
                                                    inla = c("a", "sigma")),
-                        mcmcConfiguration = list(n.chains = 10,
-                                                 n.iterations = 200,
-                                                 n.burnin = 50,
+                        mcmcConfiguration = list(n.chains = 4,
+                                                 n.iterations = 2000,
+                                                 n.burnin = 500,
                                                  n.thin = 3,
                                                  setSeed = TRUE,
                                                  samples=TRUE,
