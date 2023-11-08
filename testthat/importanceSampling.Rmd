@@ -213,12 +213,16 @@ nimbleINLA <- nimble::nimbleRcall(
 covariate = data$x
 x <- covariate
 model <- mwtc
-control = list(inlaModel = fit.inla,
+
+control = list(nimbleINLA = nimbleINLA,
                        fixedVals = c("a", "sigma"),
-                      proposal = "dnorm",
+                      proposal = "normal",
                       initMean = c(0,0),
                       initCov = NULL,
-                      timeIndex = 3)
+                      timeIndex = 3,
+                      nSteps = 20,
+                      nCores = 2,
+                      dfTdist = 3)
 y = "y"; target = "beta"
 rr <- inlaIS(mwtc, "gaussian", x, y = "y", target = "beta",
        control = list(nimbleINLA = nimbleINLA,
@@ -227,14 +231,14 @@ rr <- inlaIS(mwtc, "gaussian", x, y = "y", target = "beta",
                       initMean = c(0,0),
                       initCov = NULL,
                       timeIndex = 3,
-                      nSteps = 3,
+                      nSteps = 20,
                       nCores = 2,
                       dfTdist = 3))
 
 compileModel <- compileNimble(mwtc, rr)
 
 
-out <- compileModel$rr$run(3)
+out <- compileModel$rr$run()
 
 
 #return results
