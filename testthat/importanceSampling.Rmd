@@ -227,18 +227,18 @@ model <- mwtc
 rr <- inlaIS(mwtc, "gaussian", x, y = "y", target = "beta",
        control = list(nimbleINLA = nimbleINLA,
                        fixedVals = c("a", "sigma"),
-                      proposal = "normal",
+                      proposal = "studentT",
                       initMean = c(0,0),
                       initCov = NULL,
-                      timeIndex = 3,
-                      nSteps = 20,
-                      nCores = 2,
+                      timeIndex = 300,
+                      nSteps = 10,
+                      nCores = 3,
                       dfTdist = 3))
 
-# compileModel <- compileNimble(mwtc, rr)
+ compileModel <- compileNimble(mwtc, rr)
 # 
 # 
-# out <- compileModel$rr$run()
+ out <- compileModel$rr$run()
 # 
 # 
 # #return results
@@ -256,7 +256,7 @@ rr <- inlaIS(mwtc, "gaussian", x, y = "y", target = "beta",
 **test function**
 ```{r}
 
-  inlaNimBivariate <- myphdthesis::INLAWiNimDataGenerating(data = c("y"),
+  inlaNimBivariate <-INLAWiNimDataGenerating(data = c("y"),
                         covariate = bivariateSims$x,
                         code = code,
                         family = "gaussian",
