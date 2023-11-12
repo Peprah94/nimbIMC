@@ -1,34 +1,4 @@
-# Adaptive multiple Importance Sampling with INLA
 
-##  Contains code to IS
-##  We have a build function (buildBootstrapFilter),
-##  and step function.
-importanceSamplingStepVirtual <- nimbleFunctionVirtual(
-  run = function(meanBeta = double(2),
-                 sigmaBeta = double(3),
-                 #t = integer(0),
-                 prevSamp = integer(0)) {
-    returnType(double(0))
-  },
-  methods = list(
-    updateBetaMean=function(){
-      returnType(double(1))
-      return(mu)
-    },
-    updateBetaSigma=function(){
-      returnType(double(2))
-      return(sigma)
-    }
-  )
-)
-
-
-
-#FUnction to convert mvEWSamples to matrix
-convertToMatrix <- function(mvEWSamples, target){
-  ret <- as.matrix(mvEWSamples, target)
-  return(ret)
-}
 
 # nimbleconvertToMatrix <- nimble::nimbleRcall(
 #   prototype = function(
