@@ -1,6 +1,6 @@
-Package: myphdthesis
+Package: nimbIMC
 Type: Package
-Title: What the Package Does (Title Case)
+Title: Fits hierarchical models with NIMBLE using the INLA-MCMC and INLA-IS methodology
 Version: 0.1.0
 Author: Kwaku Peprah Adjei
 Maintainer: The package maintainer <kadjeipeprah94@gmail.com>
@@ -25,12 +25,10 @@ Imports:
     glmnet,
     mice,
     mvtnorm,
-    rgeos,
     raster,
     pbapply,
     reshape,
     tiff,
-    maptools,
     spatstat,
     gdata,
     gridExtra,

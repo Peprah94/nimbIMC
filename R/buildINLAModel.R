@@ -3,8 +3,7 @@
 ##  and step function.
 
 inlaStepVirtual <- nimbleFunctionVirtual(
-  run = function(beta = double(1)
-                 ) {
+  run = function(beta = double(1) ) {
     returnType(double(0))
   }
 )
@@ -142,8 +141,7 @@ saveResults = function(fixedVals = character(0),
 )
 
 
-# Bootstrap filter as specified in Doucet & Johnasen '08,
-# uses weights from previous time point to calculate likelihood estimate.
+#Run the INLA FS step
 inlaFStepMultiple <- nimbleFunction(
   name = 'inlaFStepMultiple',
   contains = inlaStepVirtual,

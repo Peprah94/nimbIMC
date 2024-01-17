@@ -136,7 +136,7 @@ impSampINLAstep <- nimbleFunction(
         #Calulate weights
       for(i in 1:m){
         betaVals <<- betaEsts[i, 1:nBetaSims]
-        nn <- 0
+        nn <- 0 # start indexing to estimate gamma
       for(j in 1:iNode){
         if(proposal == "normal"){
          nn <- nn +  timeIndex * dmnorm_chol(betaVals, meanBeta[j,], chol(sigmaBeta[,,j]), prec_param = FALSE, log = FALSE)
