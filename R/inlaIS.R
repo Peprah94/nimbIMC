@@ -384,6 +384,7 @@ inlaIS <- nimbleFunction(
       return(ret)
     } )
 
+    if("gamma" %in% names) stop("change the variable name of gamma.")
     #size$beta <- 4
     # Add names and dimensions for wts and gamma
     names <- c(names, "wts", "gamma","logLike")

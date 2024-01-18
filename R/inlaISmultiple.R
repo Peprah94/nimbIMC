@@ -184,7 +184,7 @@ print(sigmaBeta[,,iNode])
           nn <- nn +  timeIndex * (dmnorm_chol(betaVals, meanBeta[j,], chol(sigmaBeta[,,j]), prec_param = FALSE, log = FALSE) + exp(model$getLogProb(discTarNames)))
           }
         if(proposal == "studentT"){
-          nn <- nn +  timeIndex * (dmvt_chol(betaVals, mu = meanBeta[j,], chol(sigmaBeta[,,j]), df= dfTdist, prec_param = FALSE, log = FALSE) + exp(model$getLogProb(discTarNames)))
+          nn <- nn +  timeIndex * (dmvt_chol(betaVals, mu = meanBeta[j,], chol(sigmaBeta[,,j]), df= dfTdist, prec_param = FALSE, log = FALSE))# + exp(model$getLogProb(discTarNames)))
         }
         #nugs[j] <<- m * dmnorm_chol(betaVals, meanBeta[j,], chol(sigmaBeta[,,j]), prec_param = FALSE, log = FALSE)
       }
@@ -201,7 +201,7 @@ print(sigmaBeta[,,iNode])
 
 
       # log likelihood should include the contribution from beta and latent variables
-      loglike <- res[i,1] + logProbAllPars #model$calculate(allISparameters)
+      loglike <- res[i,1] + model$calculate(allISparameters)
 
 
       #calculate weights
@@ -212,7 +212,7 @@ print(sigmaBeta[,,iNode])
           wts[i] <<- loglike - dmnorm_chol(betaVals, meanBeta[iNode,], chol(sigmaBeta[,,iNode]), prec_param = FALSE, log = TRUE) - model$getLogProb(discTarNames)
         }
         if(proposal == "studentT"){
-          wts[i] <<- loglike - dmvt_chol(betaVals, meanBeta[iNode,], chol(sigmaBeta[,,iNode]), df= dfTdist,prec_param = FALSE, log = TRUE)-  model$getLogProb(discTarNames)
+          wts[i] <<- loglike - dmvt_chol(betaVals, meanBeta[iNode,], chol(sigmaBeta[,,iNode]), df= dfTdist,prec_param = FALSE, log = TRUE) -  model$getLogProb(discTarNames)
         }
         if(proposal == "prior"){
           wts[i] <<- loglike - model$calculate(betaVals)
@@ -263,13 +263,14 @@ print(sigmaBeta[,,iNode])
           allIsparslike <- model$calculate(allISparameters)
           #if(prevSamp == 1){
           if(proposal == "normal"){
-            priorDist <- dmnorm_chol(betaValsNew, meanBeta[iNode,], chol(sigmaBeta[,,iNode]), prec_param = FALSE, log = FALSE) + exp(model$getLogProb(discTarNames))
+            priorDist <- dmnorm_chol(betaValsNew, meanBeta[iNode,], chol(sigmaBeta[,,iNode]), prec_param = FALSE, log = FALSE) #+ exp(model$getLogProb(discTarNames))
           }
           if(proposal == "studentT"){
-            priorDist <- dmvt_chol(betaValsNew, mu = meanBeta[iNode, ], chol(sigmaBeta[,,iNode]), df= dfTdist,prec_param = FALSE, log = FALSE) + exp(model$getLogProb(discTarNames))
+            priorDist <- dmvt_chol(betaValsNew, mu = meanBeta[iNode, ], chol(sigmaBeta[,,iNode]), df= dfTdist,prec_param = FALSE, log = FALSE) #+ exp(model$getLogProb(discTarNames))
           }
           if(proposal == "prior"){
-            priorDist <- exp(allIsparslike) #exp(model$calculate(beta))
+            #priorDist <- exp(allIsparslike) #exp(model$calculate(beta))
+            priorDist <- exp(model$calculate(beta))
             #model$simulate(nodes = betaNames)
             #betaVals <<- values(model, betaNames)
           }
@@ -464,6 +465,7 @@ inlaISmultiple <- nimbleFunction(
     } )
 
     #size$beta <- 4
+    if("gamma" %in% names) stop("change the variable name of gamma.")
     # Add names and dimensions for wts and gamma
     names <- c(names, "wts", "gamma","logLike")
     type <- c(type, rep("double", 1), rep("double",1), rep("double", 1))
