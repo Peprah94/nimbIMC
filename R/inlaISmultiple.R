@@ -150,10 +150,10 @@ print(sigmaBeta[,,iNode])
 #print(isLatentBinary)
       if(isLatentBinary == FALSE){
       model$simulate(nodes = discTarNames)
-      } #else {
-       # model$simulate(nodes = binNodesToSimulate)
-       # values(model, binNodesToFix) <<- binNodesToFixVals
-      #}
+      } else {
+        model$simulate(nodes = binNodesToSimulate)
+        values(model, binNodesToFix) <<- binNodesToFixVals
+      }
 
 
       discTarEsts[i, 1:nDiscTarNames] <<- values(model, discTarNames)
@@ -184,7 +184,7 @@ print(sigmaBeta[,,iNode])
           nn <- nn +  timeIndex * (dmnorm_chol(betaVals, meanBeta[j,], chol(sigmaBeta[,,j]), prec_param = FALSE, log = FALSE) + exp(model$getLogProb(discTarNames)))
           }
         if(proposal == "studentT"){
-          nn <- nn +  timeIndex * (dmvt_chol(betaVals, mu = meanBeta[j,], chol(sigmaBeta[,,j]), df= dfTdist, prec_param = FALSE, log = FALSE))# + exp(model$getLogProb(discTarNames)))
+          nn <- nn +  timeIndex * (dmvt_chol(betaVals, mu = meanBeta[j,], chol(sigmaBeta[,,j]), df= dfTdist, prec_param = FALSE, log = FALSE) + exp(model$getLogProb(discTarNames)))
         }
         #nugs[j] <<- m * dmnorm_chol(betaVals, meanBeta[j,], chol(sigmaBeta[,,j]), prec_param = FALSE, log = FALSE)
       }
