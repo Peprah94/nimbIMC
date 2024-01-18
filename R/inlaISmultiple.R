@@ -29,7 +29,8 @@ impSampINLAstepMultiple <- nimbleFunction(
                    vars,
                    nCores,
                    dfTdist,
-                   adaptive
+                   adaptive,
+                   additionalPars
   ) {
 
     #Note
@@ -40,20 +41,49 @@ impSampINLAstepMultiple <- nimbleFunction(
     #set continuous vars to beta and discrete vars to disc
     beta <- isNotDiscreteTarget
     disc <- discreteTarget
+
     # setting up parameters
     N <- length(fixedVals) #length of INLA parameters
-    ess <- 0
+    ess <- 0 # initialise effective sample size
 
     #store simulated values of beta
     betaNames <- model$expandNodeNames(nodes = beta)
     nBetaSims <- length(betaNames) #dimeension of beta
     betaVals <- rep(0, length = length(betaNames)) #vector to store beta values
 
-    #store simulated values of discrete target
+    #store simulated values of discrete (latent) target
     discTarNames <- model$expandNodeNames(nodes = discreteTarget)
     nDiscTarNames <- length(discTarNames)
     discTarVals <- rep(0, length = nDiscTarNames)
     depsDiscTarNames <- model$getDependencies(discTarNames)
+
+
+
+    #check if the discrete random variable is binary
+    isLatentBinary <- all(model$isBinary(discTarNames) == TRUE)
+    #print(isLatentBinary)
+   # if(isLatentBinary == TRUE){
+      #select those that are data
+    binNodesToSimulate <- discTarNames[!model$isData(discTarNames)]
+    nBinNodesToSimulate <- length(binNodesToSimulate)
+    binNodesToFix <- discTarNames[model$isData(discTarNames)]
+    nBinNodesToFix <- length(binNodesToFix)
+    binNodesToSimulateVals <- rep(0, length = nBinNodesToSimulate)
+    binNodesToFixVals <- rep(1, length = nBinNodesToFix)
+   # } else {
+    #   binNodesToSimulate <- NULL
+    #   nBinNodesToSimulate <- NULL
+    #   binNodesToFix <- NULL
+    #   nBinNodesToFix <- NULL
+    #   binNodesToSimulateVals <- NULL
+    #   binNodesToFixVals <- NULL
+    # }
+
+
+
+    #get dependencies of both parameters. Will be used to calculate weights at each time
+    allISparameters <- c(beta, discreteTarget)
+    allISparametersDeps <-   model$getDependencies(allISparameters)
 
     # store updated mean and sigma
     mu <- rep(0, length = nBetaSims)
@@ -82,6 +112,9 @@ impSampINLAstepMultiple <- nimbleFunction(
     rtsUpd <- matrix(0, nrow = sumNt, ncol = nBetaSims)
     muEsts <- matrix(0, nrow = sumNt, ncol = nBetaSims)
 
+    #check if we have additional Parameters (especially derived quantities) to save
+    isAdditionalPars <- !is.null(additionalPars)
+
   },
   run = function(meanBeta = double(2),
                  sigmaBeta = double(3),
@@ -91,8 +124,8 @@ impSampINLAstepMultiple <- nimbleFunction(
 
     k <- indInc + 1
     m <<- timeIndex
-
-
+print(meanBeta[iNode,])
+print(sigmaBeta[,,iNode])
     # simulate samples
     for(i in 1:m){
 
@@ -109,12 +142,22 @@ impSampINLAstepMultiple <- nimbleFunction(
       }
 
       betaEsts[i, 1:nBetaSims] <<- betaVals
+      print(betaVals)
 
       #simulate discrete rvs
       values(model, betaNames) <<- betaVals
       model$calculate(depsDiscTarNames)
+#print(isLatentBinary)
+      if(isLatentBinary == FALSE){
       model$simulate(nodes = discTarNames)
+      } #else {
+       # model$simulate(nodes = binNodesToSimulate)
+       # values(model, binNodesToFix) <<- binNodesToFixVals
+      #}
+
+
       discTarEsts[i, 1:nDiscTarNames] <<- values(model, discTarNames)
+      print(discTarEsts[i, 1:nDiscTarNames])
       }
 
     res <- nimbleINLA(x, y, beta= betaEsts, extraVars = discTarEsts,fixedVals,  family = fam, nCores = nCores)
@@ -123,32 +166,53 @@ impSampINLAstepMultiple <- nimbleFunction(
     #Calulate weights
     for(i in 1:m){
       betaVals <<- betaEsts[i, 1:nBetaSims]
+      values(model, beta) <<- betaVals
+      values(model, discTarNames) <<- discTarEsts[i, 1:nDiscTarNames]
+      #update dependencies of all parameters
+      model$calculate(allISparametersDeps)
+
+      # call the calculate of dependencies of all parameters to update logprobability of all nodes
+     logProbAllPars <-  model$calculate(allISparameters)
+
+     #####################
+     # Update past importance weights
+     ##########################
       nn <- 0
       for(j in 1:iNode){
         if(proposal == "normal"){
-          nn <- nn +  timeIndex * dmnorm_chol(betaVals, meanBeta[j,], chol(sigmaBeta[,,j]), prec_param = FALSE, log = FALSE)
-        }
+          #note that getLogProb returns the log of the log density. To get the density, we take exp of the logProb
+          nn <- nn +  timeIndex * (dmnorm_chol(betaVals, meanBeta[j,], chol(sigmaBeta[,,j]), prec_param = FALSE, log = FALSE) + exp(model$getLogProb(discTarNames)))
+          }
         if(proposal == "studentT"){
-          nn <- nn +  timeIndex * dmvt_chol(betaVals, mu = meanBeta[j,], chol(sigmaBeta[,,j]), df= dfTdist, prec_param = FALSE, log = FALSE)
+          nn <- nn +  timeIndex * (dmvt_chol(betaVals, mu = meanBeta[j,], chol(sigmaBeta[,,j]), df= dfTdist, prec_param = FALSE, log = FALSE) + exp(model$getLogProb(discTarNames)))
         }
         #nugs[j] <<- m * dmnorm_chol(betaVals, meanBeta[j,], chol(sigmaBeta[,,j]), prec_param = FALSE, log = FALSE)
       }
       gamma[i] <<- nn
       #gamma[i] <<- sum(nugs[1:iNode])
 
+      ###############################
+      # Estimating weights
+      ################################
+
       # calculate numerator of wts in paper
-      values(model, beta) <<- betaVals
-      values(model, discTarNames) <<- discTarEsts[i, 1:nDiscTarNames]
-      loglike <- res[i,1] + model$calculate(beta)
+
+      #values(model, discTarNames) <<- discTarEsts[i, 1:nDiscTarNames]
+
+
+      # log likelihood should include the contribution from beta and latent variables
+      loglike <- res[i,1] + logProbAllPars #model$calculate(allISparameters)
+
+
       #calculate weights
       if(iNode > 1){
         wts[i] <<- loglike - log(gamma[i]/sumNt)
       }else{
         if(proposal == "normal"){
-          wts[i] <<- loglike - dmnorm_chol(betaVals, meanBeta[iNode,], chol(sigmaBeta[,,iNode]), prec_param = FALSE, log = TRUE)
+          wts[i] <<- loglike - dmnorm_chol(betaVals, meanBeta[iNode,], chol(sigmaBeta[,,iNode]), prec_param = FALSE, log = TRUE) - model$getLogProb(discTarNames)
         }
         if(proposal == "studentT"){
-          wts[i] <<- loglike - dmvt_chol(betaVals, meanBeta[iNode,], chol(sigmaBeta[,,iNode]), df= dfTdist,prec_param = FALSE, log = TRUE)
+          wts[i] <<- loglike - dmvt_chol(betaVals, meanBeta[iNode,], chol(sigmaBeta[,,iNode]), df= dfTdist,prec_param = FALSE, log = TRUE)-  model$getLogProb(discTarNames)
         }
         if(proposal == "prior"){
           wts[i] <<- loglike - model$calculate(betaVals)
@@ -163,6 +227,9 @@ impSampINLAstepMultiple <- nimbleFunction(
       nimCopy(model, mvEWSamples, nodes = beta, nodesTo = beta, row=1, rowTo = k)
       nimCopy(model, mvEWSamples, nodes = fixedVals, nodesTo = fixedVals, row = 1, rowTo = k)
       nimCopy(model, mvEWSamples, nodes = discTarNames, nodesTo = discTarNames, row = 1, rowTo = k)
+      if(isAdditionalPars){
+      nimCopy(model, mvEWSamples, nodes = additionalPars, nodesTo = additionalPars, row = 1, rowTo = k)
+      }
       #save wts and gamma at Nt, since it won't be updates
       mvEWSamples["gamma",i][iNode] <<- gamma[i]
       mvEWSamples["wts", i][iNode] <<- wts[i]
@@ -179,7 +246,9 @@ impSampINLAstepMultiple <- nimbleFunction(
     nWeights <- nWeights/sum(nWeights)
     ess <<- 1/sum(nWeights^2)
 
-    #update wts and gamma for iNode > 1
+    ######################################
+    #update past importance weights and gamma for iNode > 1
+    ###################################
 
     if(iNode > 1 & adaptive == TRUE){
       for(i in 1:m){
@@ -187,17 +256,20 @@ impSampINLAstepMultiple <- nimbleFunction(
           #index of weights to update
           indx <- i + (t-1)*m
 
-          nimCopy(mvEWSamples, model, nodes = beta, nodesTo = beta, row = indx, rowTo = 1)
+          nimCopy(mvEWSamples, model, nodes = allISparameters, nodesTo = allISparameters, row = indx, rowTo = 1)
           betaValsNew <- values(model, beta)
+
+          # Update the model logProb with copied values
+          allIsparslike <- model$calculate(allISparameters)
           #if(prevSamp == 1){
           if(proposal == "normal"){
-            priorDist <- dmnorm_chol(betaValsNew, meanBeta[iNode,], chol(sigmaBeta[,,iNode]), prec_param = FALSE, log = FALSE)
+            priorDist <- dmnorm_chol(betaValsNew, meanBeta[iNode,], chol(sigmaBeta[,,iNode]), prec_param = FALSE, log = FALSE) + exp(model$getLogProb(discTarNames))
           }
           if(proposal == "studentT"){
-            priorDist <- dmvt_chol(betaValsNew, mu = meanBeta[iNode, ], chol(sigmaBeta[,,iNode]), df= dfTdist,prec_param = FALSE, log = FALSE)
+            priorDist <- dmvt_chol(betaValsNew, mu = meanBeta[iNode, ], chol(sigmaBeta[,,iNode]), df= dfTdist,prec_param = FALSE, log = FALSE) + exp(model$getLogProb(discTarNames))
           }
           if(proposal == "prior"){
-            priorDist <- exp(model$calculate(beta))
+            priorDist <- exp(allIsparslike) #exp(model$calculate(beta))
             #model$simulate(nodes = betaNames)
             #betaVals <<- values(model, betaNames)
           }
@@ -214,7 +286,10 @@ impSampINLAstepMultiple <- nimbleFunction(
 
     }
 
-    # calculate updated weights and gamma
+    ##########################################
+    # calculate updated mean and covariance matrix for prior distribution
+    #########################################
+
     if(adaptive ==TRUE){
       wtsUpd <- betaEstsUpd[1:sumNt,(nBetaSims+1)]
       maxWtsUpd <- max(wts)
@@ -312,10 +387,10 @@ impSampINLAstepMultiple <- nimbleFunction(
 #
 
 inlaISmultiple <- nimbleFunction(
-  name = 'inlaIS',
+  name = 'inlaISmultiple',
   setup = function(model,
                    fam, x,
-                   y = double(2),
+                   y,
                    target, #beta
                    control = list()) {
 
@@ -331,6 +406,7 @@ inlaISmultiple <- nimbleFunction(
     nCores <- extractControlElement(control, 'nCores',  NULL)
     dfTdist <- extractControlElement(control, 'dfTdist',  NULL)
     adaptive <- extractControlElement(control, 'adaptive',  TRUE)
+    additionalPars <- extractControlElement(control, 'additionalPars',  NULL)
 
 
     #Note
@@ -342,7 +418,10 @@ inlaISmultiple <- nimbleFunction(
     })
     nTarget <- length(target)
 
-    if(nTarget > 2) stop("Function only works for two target variables")
+    if(!is.character(y)) stop("'y' must be the node nae for the data variable")
+    y <- model[[y]]
+
+    if(nTarget < 2) stop("Function only works for more than two target variables")
     discreteTarget <- target[isDic]
     isNotDiscreteTarget <- target[!isDic]
 
@@ -363,7 +442,11 @@ inlaISmultiple <- nimbleFunction(
     my_initializeModel <- initializeModel(model, silent = TRUE)
     #save posterior samples
     #modelVals = modelValues(model, m = 1)
+    if(is.null(additionalPars)){
     vars <- model$getVarNames(nodes = c(fixedVals, target))
+    }else{
+      vars <- model$getVarNames(nodes = c(fixedVals, target, additionalPars))
+    }
     modelSymbolObjects <- model$getSymbolTable()$getSymbolObjects()[vars]
 
     names <- sapply(modelSymbolObjects, function(x)return(x$name))
@@ -408,7 +491,7 @@ inlaISmultiple <- nimbleFunction(
 
     impSampINLAstepFnx <- nimbleFunctionList(importanceSamplingStepVirtual)
     #for(iNode in seq_along(nodes)){
-    beta <- target
+   # beta <- target
     for(iNode in 1:nSteps){
       impSampINLAstepFnx[[iNode]] <- impSampINLAstepMultiple(model,
                                                      mvEWSamples,
@@ -420,13 +503,14 @@ inlaISmultiple <- nimbleFunction(
                                                      # interInModel,
                                                      fam,
                                                      proposal, #proposal distribution
-                                                     isNotDiscreteTarget, #indicates whether t = 0 or not
-                                                     discreteTarget, #variable names for beta)
+                                                     isNotDiscreteTarget, # continuous variables which we specify normal or T-distribution for
+                                                     discreteTarget, # Discrete random variables
                                                      timeIndex,
                                                      vars,
                                                      nCores,
                                                      dfTdist,
-                                                     adaptive
+                                                     adaptive,
+                                                     additionalPars
       )
     }
 

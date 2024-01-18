@@ -152,6 +152,8 @@ impSampINLAstep <- nimbleFunction(
         # calculate numerator of wts in paper
       values(model, beta) <<- betaVals
       loglike <- res[i,1] + model$calculate(beta)
+
+
       #calculate weights
       if(iNode > 1){
       wts[i] <<- loglike - log(gamma[i]/sumNt)
