@@ -40,6 +40,7 @@ INLAWiNimDataGeneratingTargetDivide <- function(data,
   target <- parametersToMonitor$mcmc
   targetMCMC <- parametersToMonitor$mcmcINLA
   additionalPars <- parametersToMonitor$additionalPars
+
   #set up initial value
 
   initsList <- modelInits()
@@ -157,6 +158,7 @@ INLAWiNimDataGeneratingTargetDivide <- function(data,
     samplerControl$timeIndex <- ceiling(mcmcConfiguration[["n.iterations"]]/(mcmcConfiguration[["n.chains"]]))
     samplerControl$nSteps <- mcmcConfiguration[["n.chains"]]
     if(!is.null(additionalPars)){samplerControl$additionalPars <- additionalPars}
+    if(is.null(samplerControl$latentIsDependent)) samplerControl$latentIsDependent <- TRUE
     rr <- inlaISmultiple(mwtc,
                  family,
                  x,
