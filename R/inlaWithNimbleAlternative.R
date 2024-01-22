@@ -40,6 +40,8 @@ INLAWiNimDataGeneratingTargetDivide <- function(data,
   target <- parametersToMonitor$mcmc
   targetMCMC <- parametersToMonitor$mcmcINLA
   additionalPars <- parametersToMonitor$additionalPars
+  betaWts <- parametersToMonitor$betaWts
+  latentWts <- parametersToMonitor$latentWts
 
   #set up initial value
 
@@ -57,6 +59,7 @@ INLAWiNimDataGeneratingTargetDivide <- function(data,
 
   #create list to return
   retList <- list()
+
   # Fit INLAMCMC
 
   if(inlaMCMC %in% "inlamcmc"){
@@ -159,6 +162,8 @@ INLAWiNimDataGeneratingTargetDivide <- function(data,
     samplerControl$nSteps <- mcmcConfiguration[["n.chains"]]
     if(!is.null(additionalPars)){samplerControl$additionalPars <- additionalPars}
     if(is.null(samplerControl$latentIsDependent)) samplerControl$latentIsDependent <- TRUE
+   # if(!is.null(latentWts)) samplerControl$latentWts <- latentWts
+   # if(!is.null(betaWts)) samplerControl$betaWts <- betaWts
     rr <- inlaISmultiple(mwtc,
                  family,
                  x,

@@ -94,6 +94,7 @@ impSampINLAstepMultiple <- nimbleFunction(
     # store weights and gamma
     wts <- numeric(m)
     gamma <- numeric(m)
+    wtsLatent <- numeric(m)
 
     # Create a cummulative indexing to calculate nugget
     nugget <- seq(1, iNode, 1) #Cummulative index for N's
@@ -129,8 +130,8 @@ impSampINLAstepMultiple <- nimbleFunction(
 
     k <- indInc + 1
     m <<- timeIndex
-print(meanBeta[iNode,])
-print(sigmaBeta[,,iNode])
+#print(meanBeta[iNode,])
+#print(sigmaBeta[,,iNode])
     # simulate samples
     for(i in 1:m){
 
@@ -154,7 +155,8 @@ print(sigmaBeta[,,iNode])
 
       #for independence in latent variable and alternative MCMC sampler
       if(!latentIsDependent) values(model, fixedVals) <<- fixedValsStoreMatrix[i, ]
-      model$calculate(depsDiscTarNames)
+     # model$calculate(depsDiscTarNames)
+      model$calculate()
 #print(isLatentBinary)
       if(isLatentBinary == FALSE){
       model$simulate(nodes = discTarNames)
@@ -181,8 +183,8 @@ print(sigmaBeta[,,iNode])
 
       # call the calculate of dependencies of all parameters to update logprobability of all nodes
      logProbAllPars <-  model$calculate(allISparameters)
-print(logProbAllPars)
-print(model$getLogProb(discTarNames))
+#print(logProbAllPars)
+#print(model$getLogProb(discTarNames))
      #####################
      # Update past importance weights
      ##########################
@@ -230,6 +232,15 @@ print(model$getLogProb(discTarNames))
           wts[i] <<- loglike - model$calculate(betaVals)
         }
       }
+
+      # Calculate weights of latent
+      # For latent variable, we estime weights at next level as
+      #wts[i] <- p(yt +1|N)*wts[i-1]
+      if(iNode > 1){
+      wtsLatent[i] <<- model$calculate(discTarNames) #+ mvEWSamples["wtsLatent", i][iNode-1]
+      }else{
+        wtsLatent[i] <<- model$calculate(discTarNames)
+      }
       # save the numerator of the weights for the updating step
       mvWSamples["logLike",i][iNode] <<- loglike
       mvEWSamples["logLike",i][iNode] <<- loglike
@@ -239,23 +250,35 @@ print(model$getLogProb(discTarNames))
 
       if(!latentIsDependent) fixedValsStoreMatrix[i, ] <<- values(model, fixedVals)
 
+      #values(model, betaWts) <<- wts[i]
+      #values(model, latentWts) <<- wtsLatent[i]
+
       if(isNullAdditionalPars){
         nimCopy(model, mvEWSamples, nodes = beta, nodesTo = beta, row=1, rowTo = k)
         nimCopy(model, mvEWSamples, nodes = fixedVals, nodesTo = fixedVals, row = 1, rowTo = k)
         nimCopy(model, mvEWSamples, nodes = discTarNames, nodesTo = discTarNames, row = 1, rowTo = k)
+        #nimCopy(model, mvEWSamples, nodes = latentWts, nodesTo = latentWts, row = 1, rowTo = k)
+        #nimCopy(model, mvEWSamples, nodes = betaWts, nodesTo = betaWts, row = 1, rowTo = k)
       }else{
         nimCopy(model, mvEWSamples, nodes = beta, nodesTo = beta, row=1, rowTo = k)
         nimCopy(model, mvEWSamples, nodes = fixedVals, nodesTo = fixedVals, row = 1, rowTo = k)
         nimCopy(model, mvEWSamples, nodes = discTarNames, nodesTo = discTarNames, row = 1, rowTo = k)
         nimCopy(model, mvEWSamples, nodes = additionalPars, nodesTo = additionalPars, row = 1, rowTo = k)
-      }
+        #nimCopy(model, mvEWSamples, nodes = latentWts, nodesTo = latentWts, row = 1, rowTo = k)
+        #nimCopy(model, mvEWSamples, nodes = betaWts, nodesTo = betaWts, row = 1, rowTo = k)
+        }
       #save wts and gamma at Nt, since it won't be updates
       mvEWSamples["gamma",i][iNode] <<- gamma[i]
       mvEWSamples["wts", i][iNode] <<- wts[i]
+      mvEWSamples["wtsLatent", i][iNode] <<- wtsLatent[i]
 
       #Saving output for updated mean and sd
       betaEstsUpd[k,1:nBetaSims] <<- betaVals
       betaEstsUpd[k,(nBetaSims+1)] <<- wts[i]
+      print(k)
+     mvEWSamples["latentWts", k] <<- wtsLatent[i] #mvEWSamples["wtsLatent", i][iNode]
+      mvEWSamples["betaWts", k] <<- wts[i]
+
       k <- k + 1
     }
 
@@ -281,7 +304,7 @@ print(model$getLogProb(discTarNames))
           # Update the model logProb with copied values
           model$calculate(allISparametersDeps)
           allIsparslike <- model$calculate(allISparameters)
-          print(allIsparslike)
+          #print(allIsparslike)
           #if(prevSamp == 1){
           if(proposal == "normal"){
             priorDist <- dmnorm_chol(betaValsNew, meanBeta[iNode,], chol(sigmaBeta[,,iNode]), prec_param = FALSE, log = FALSE) #+ exp(model$getLogProb(discTarNames))
@@ -299,11 +322,12 @@ print(model$getLogProb(discTarNames))
           #estimate gamma update
           ret <-  mvEWSamples["gamma",i][t] #trying to trick nimble
           gammaUpd <- ret + (m * priorDist) #note that Nt = m
-          print(gammaUpd)
+          #print(gammaUpd)
           mvEWSamples["gamma",i][t] <<-  gammaUpd
           mvEWSamples["wts",i][t] <<- mvEWSamples["logLike",i][t] - log(gammaUpd/sumNt)
           betaEstsUpd[indx, 1:nBetaSims] <<- betaValsNew
           betaEstsUpd[indx,(nBetaSims+1)] <<- mvEWSamples["wts",i][t]
+          #mvEWSamples["betaWts", indx] <- mvEWSamples["wts",i][t]
         }
       }
 
@@ -318,7 +342,7 @@ print(model$getLogProb(discTarNames))
       maxWtsUpd <- max(wts)
       nWeightsUpd <- exp(wtsUpd - maxWtsUpd)
 
-      print(nWeightsUpd)
+      #print(nWeightsUpd)
       #sq <-sum(nWeightsUpd)
       #print(sq)
 
@@ -433,7 +457,8 @@ inlaISmultiple <- nimbleFunction(
     adaptive <- extractControlElement(control, 'adaptive',  TRUE)
     additionalPars <- extractControlElement(control, 'additionalPars',  NULL)
     latentIsDependent <- extractControlElement(control, 'latentIsDependent',  TRUE)
-
+    betaWts <- extractControlElement(control, 'betaWts',  NULL)
+    latentWts <- extractControlElement(control, 'latentWts',  NULL)
 
     #latentIsDependent must be logical
     if(!is.logical(latentIsDependent)) stop("latentIsDependent must be either TRUE or FALSE, indicating whether the latent variable is dependent on the other MCMC parameters.")
@@ -479,9 +504,9 @@ inlaISmultiple <- nimbleFunction(
     #save posterior samples
     #modelVals = modelValues(model, m = 1)
     if(is.null(additionalPars)){
-    vars <- model$getVarNames(nodes = c(fixedVals, target))
+    vars <- model$getVarNames(nodes = c(fixedVals, target, betaWts, latentWts))
     }else{
-      vars <- model$getVarNames(nodes = c(fixedVals, target, additionalPars))
+      vars <- model$getVarNames(nodes = c(fixedVals, target, additionalPars, betaWts, latentWts))
     }
     modelSymbolObjects <- model$getSymbolTable()$getSymbolObjects()[vars]
 
@@ -502,13 +527,17 @@ inlaISmultiple <- nimbleFunction(
     #size$beta <- 4
     if("gamma" %in% names) stop("change the variable name of gamma.")
     # Add names and dimensions for wts and gamma
-    names <- c(names, "wts", "gamma","logLike")
-    type <- c(type, rep("double", 1), rep("double",1), rep("double", 1))
+    names <- c(names, "wts", "gamma","logLike", "wtsLatent", "betaWts", "latentWts")
+    type <- c(type, rep("double", 1), rep("double",1),
+              rep("double", 1), rep("double", 1),
+              rep("double", 1), rep("double", 1))
     size$wts <- nSteps
-    #size$wts2 <- nSteps
+    size$wtsLatent <- nSteps
     size$gamma <- nSteps
     #size$gamma2 <- nSteps
     size$logLike <- nSteps
+    size$betaWts <- 1
+    size$latentWts <- 1
     #size$logLike2 <- nSteps
     #print(1)
     #model values to save results
