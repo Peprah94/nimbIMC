@@ -52,12 +52,13 @@ impSampINLAstepMultiple <- nimbleFunction(
     betaNames <- model$expandNodeNames(nodes = beta)
     nBetaSims <- length(betaNames) #dimeension of beta
     betaVals <- rep(0, length = length(betaNames)) #vector to store beta values
+    depsbetaNames <- model$getDependencies(betaNames, self = FALSE, determOnly = TRUE)
 
     #store simulated values of discrete (latent) target
     discTarNames <- model$expandNodeNames(nodes = discreteTarget)
     nDiscTarNames <- length(discTarNames)
     discTarVals <- rep(0, length = nDiscTarNames)
-    depsDiscTarNames <- model$getDependencies(discTarNames)
+
 
 
 
@@ -95,6 +96,7 @@ impSampINLAstepMultiple <- nimbleFunction(
     wts <- numeric(m)
     gamma <- numeric(m)
     wtsLatent <- numeric(m)
+    betaWts <- numeric(m)
 
     # Create a cummulative indexing to calculate nugget
     nugget <- seq(1, iNode, 1) #Cummulative index for N's
@@ -115,11 +117,16 @@ impSampINLAstepMultiple <- nimbleFunction(
     rtsUpd <- matrix(0, nrow = sumNt, ncol = nBetaSims)
     muEsts <- matrix(0, nrow = sumNt, ncol = nBetaSims)
 
+
+    #save the weights of beta and latent variables
+
+
     #check if we have additional Parameters (especially derived quantities) to save
     isNullAdditionalPars <- is.null(additionalPars)
 
       fixedValsStoreMatrix <- matrix(0, nrow = timeIndex, ncol = length(fixedVals))
-
+      linearPredMatrix <- matrix(0, nrow = timeIndex, ncol = nDiscTarNames)
+      linearPreds <- model$getDependencies(fixedVals, determOnly = TRUE)
 
   },
   run = function(meanBeta = double(2),
@@ -154,9 +161,15 @@ impSampINLAstepMultiple <- nimbleFunction(
       values(model, betaNames) <<- betaVals
 
       #for independence in latent variable and alternative MCMC sampler
-      if(!latentIsDependent) values(model, fixedVals) <<- fixedValsStoreMatrix[i, ]
-     # model$calculate(depsDiscTarNames)
-      model$calculate()
+      if(!latentIsDependent){
+        if(iNode > 1){
+        values(model, fixedVals) <<- fixedValsStoreMatrix[i, ]
+        values(model, linearPreds) <<- linearPredMatrix[i, ]
+        }
+      }
+
+    if(latentIsDependent) model$calculate(depsbetaNames)
+      #model$calculate()
 #print(isLatentBinary)
       if(isLatentBinary == FALSE){
       model$simulate(nodes = discTarNames)
@@ -212,11 +225,13 @@ impSampINLAstepMultiple <- nimbleFunction(
 
 
       # log likelihood should include the contribution from beta and latent variables
+     # ii <- (i-1)*nSites + 1
       if(latentIsDependent){
       loglike <- res[i,1] + model$calculate(beta)
       }else{
   loglike <- model$calculate(c(dataVar, beta))
-}
+      }
+      linearPredMatrix[i, ] <- res[,2]
 
       #calculate weights
       if(iNode > 1){
@@ -248,7 +263,9 @@ impSampINLAstepMultiple <- nimbleFunction(
       # save INLA parameter samples for current time
       saveResults(fixedVals, res, ind = i)
 
-      if(!latentIsDependent) fixedValsStoreMatrix[i, ] <<- values(model, fixedVals)
+      if(!latentIsDependent){
+        fixedValsStoreMatrix[i, ] <<- values(model, fixedVals)
+      }
 
       #values(model, betaWts) <<- wts[i]
       #values(model, latentWts) <<- wtsLatent[i]
@@ -276,8 +293,9 @@ impSampINLAstepMultiple <- nimbleFunction(
       betaEstsUpd[k,1:nBetaSims] <<- betaVals
       betaEstsUpd[k,(nBetaSims+1)] <<- wts[i]
       print(k)
-     mvEWSamples["latentWts", k] <<- wtsLatent[i] #mvEWSamples["wtsLatent", i][iNode]
-      mvEWSamples["betaWts", k] <<- wts[i]
+      #wtsLatVal <- wtsLatent[i]
+     mvEWSamples["latentWeights", k][1] <<- wtsLatent[i]  #mvEWSamples["wtsLatent", i][iNode]
+      mvEWSamples["betaWeights", k][1] <<- wts[i]
 
       k <- k + 1
     }
@@ -341,7 +359,7 @@ impSampINLAstepMultiple <- nimbleFunction(
       wtsUpd <- betaEstsUpd[1:sumNt,(nBetaSims+1)]
       maxWtsUpd <- max(wts)
       nWeightsUpd <- exp(wtsUpd - maxWtsUpd)
-
+      betaWts <<- nWeightsUpd
       #print(nWeightsUpd)
       #sq <-sum(nWeightsUpd)
       #print(sq)
@@ -367,7 +385,10 @@ impSampINLAstepMultiple <- nimbleFunction(
     }else{
       mu <<- meanBeta[iNode,]
       sigma <<- sigmaBeta[,,iNode]
+      betaWts <<- nWeights
     }
+
+
     #rr <- nWeightsUpd[i] * (betaEstsUpd[i, 1:nBetaSims] - mu[1:nBetaSims])
     #rts[i, j] <<-  nWeightsUpd[i] * (betaEstsUpd[i, j] - mu[j])
     #rtsUpd[i,j] <<- (betaEstsUpd[i, j] - mu[j])
@@ -427,6 +448,14 @@ impSampINLAstepMultiple <- nimbleFunction(
     updateBetaSigma=function(){
       returnType(double(2))
       return(sigma)
+    },
+    returnBetaWts = function(){
+      returnType(double(1))
+      return(betaWts)
+    },
+    returnLatentWts = function(){
+      returnType(double(1))
+      return(wtsLatent)
     }
   )
 )
@@ -449,7 +478,7 @@ inlaISmultiple <- nimbleFunction(
     proposal <- extractControlElement(control, 'proposal',  character())
     initMean <- extractControlElement(control, 'initMean',  NULL)
     initCov <- extractControlElement(control, 'initCov',  NULL)
-    initModel <- extractControlElement(control, 'initModel',  TRUE)
+    initModel <- extractControlElement(control, 'initModel',  FALSE)
     timeIndex <- extractControlElement(control, 'timeIndex',  double()) #Nt
     nSteps <- extractControlElement(control, 'nSteps',  integer()) #Number of steps at each direction
     nCores <- extractControlElement(control, 'nCores',  NULL)
@@ -457,8 +486,8 @@ inlaISmultiple <- nimbleFunction(
     adaptive <- extractControlElement(control, 'adaptive',  TRUE)
     additionalPars <- extractControlElement(control, 'additionalPars',  NULL)
     latentIsDependent <- extractControlElement(control, 'latentIsDependent',  TRUE)
-    betaWts <- extractControlElement(control, 'betaWts',  NULL)
-    latentWts <- extractControlElement(control, 'latentWts',  NULL)
+    #betaWts <- extractControlElement(control, 'betaWts',  NULL)
+    #latentWts <- extractControlElement(control, 'latentWts',  NULL)
 
     #latentIsDependent must be logical
     if(!is.logical(latentIsDependent)) stop("latentIsDependent must be either TRUE or FALSE, indicating whether the latent variable is dependent on the other MCMC parameters.")
@@ -504,9 +533,9 @@ inlaISmultiple <- nimbleFunction(
     #save posterior samples
     #modelVals = modelValues(model, m = 1)
     if(is.null(additionalPars)){
-    vars <- model$getVarNames(nodes = c(fixedVals, target, betaWts, latentWts))
+    vars <- model$getVarNames(nodes = c(fixedVals, target))
     }else{
-      vars <- model$getVarNames(nodes = c(fixedVals, target, additionalPars, betaWts, latentWts))
+      vars <- model$getVarNames(nodes = c(fixedVals, target, additionalPars))
     }
     modelSymbolObjects <- model$getSymbolTable()$getSymbolObjects()[vars]
 
@@ -527,17 +556,16 @@ inlaISmultiple <- nimbleFunction(
     #size$beta <- 4
     if("gamma" %in% names) stop("change the variable name of gamma.")
     # Add names and dimensions for wts and gamma
-    names <- c(names, "wts", "gamma","logLike", "wtsLatent", "betaWts", "latentWts")
+    names <- c(names, "wts", "gamma","logLike", "wtsLatent", "betaWeights", "latentWeights")
     type <- c(type, rep("double", 1), rep("double",1),
-              rep("double", 1), rep("double", 1),
-              rep("double", 1), rep("double", 1))
+              rep("double", 1), rep("double", 1), rep("double", 1), rep("double", 1))
     size$wts <- nSteps
     size$wtsLatent <- nSteps
     size$gamma <- nSteps
     #size$gamma2 <- nSteps
     size$logLike <- nSteps
-    size$betaWts <- 1
-    size$latentWts <- 1
+    size$betaWeights <- 1
+    size$latentWeights <- 1
     #size$logLike2 <- nSteps
     #print(1)
     #model values to save results
@@ -587,6 +615,9 @@ inlaISmultiple <- nimbleFunction(
     sigmaStep[,,1] <- initCov
     m <- timeIndex
 
+
+    # save the weights of beta and latent states
+    wtsMatrix <- matrix(0, ncol = 2, nrow = nSteps*timeIndex)
     # prevSamp
 
   },
@@ -599,7 +630,7 @@ inlaISmultiple <- nimbleFunction(
     resize(mvWSamples, nIter)
     essVals <- 0
     pp <- 0
-
+    #indxs <- 1:timeIndex
     # runs for each Nt
     for(iNode in seq_along(impSampINLAstepFnx)){
       essVals <- essVals + impSampINLAstepFnx[[iNode]]$run(meanBeta = muStep, sigmaBeta=sigmaStep, prevSamp = pp)
@@ -607,8 +638,12 @@ inlaISmultiple <- nimbleFunction(
       muStep[iNode+1,] <<-   impSampINLAstepFnx[[iNode]]$updateBetaMean()
       sigmaStep[ , ,iNode+1] <<- impSampINLAstepFnx[[iNode]]$updateBetaSigma()
       #}
-      #impSampINLAstepFnx[[iNode]]$returnESS()
+      #wtsMatrix[indxs,1] <<- impSampINLAstepFnx[[iNode]]$returnBetaWts()
+     # wtsMatrix[indxs,2] <<- impSampINLAstepFnx[[iNode]]$returnLatentWts()
+
       pp <- 1
+
+      #indxs <<- indxs + (iNode)*timeIndex
       #}
     }
     return(essVals)

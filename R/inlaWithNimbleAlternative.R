@@ -40,8 +40,8 @@ INLAWiNimDataGeneratingTargetDivide <- function(data,
   target <- parametersToMonitor$mcmc
   targetMCMC <- parametersToMonitor$mcmcINLA
   additionalPars <- parametersToMonitor$additionalPars
-  betaWts <- parametersToMonitor$betaWts
-  latentWts <- parametersToMonitor$latentWts
+  #betaWts <- parametersToMonitor$betaWts
+  #latentWts <- parametersToMonitor$latentWts
 
   #set up initial value
 
@@ -174,6 +174,7 @@ INLAWiNimDataGeneratingTargetDivide <- function(data,
     #compile Model
     compileModel <- compileNimble(mwtc, rr)
 
+
     startTime <- Sys.time()
     out <- compileModel$rr$run()
     endTime <- Sys.time()
@@ -190,6 +191,26 @@ INLAWiNimDataGeneratingTargetDivide <- function(data,
 
     nburnin = mcmcConfiguration[["n.burnin"]]
     res <- mcmc.matrix[-(1:nburnin), -indices]
+
+
+  # Resample latent vars with their weights
+    additionalPars <- colnames(res)[startsWith(colnames(res), additionalPars)]
+    latentNames <- mwtc$expandNodeNames(target)[mwtc$isDiscrete(target)]
+    latentRes <- res[ , colnames(res) %in% c(latentNames, additionalPars, "latentWeights[1]")]
+
+    #resample latent variable with their weights
+    #Extract weights and obtain sampling index
+    latentWtsIndex <- ncol(latentRes)
+    maxWts <- max(latentRes[, latentWtsIndex ])
+    nWeights <- exp(latentRes[, latentWtsIndex ] - maxWts)
+    nWeights <- nWeights/sum(nWeights)
+    latentSampIndex <- sample(1:nrow(res), prob = nWeights, replace = TRUE)
+    latentRes <- latentRes[latentSampIndex, -latentWtsIndex]
+
+    otherRes <- res[ , !colnames(res) %in% c(latentNames, additionalPars, "latentWeights[1]", "betaWts[1]")]
+
+    #put all together
+    res <- cbind(otherRes, latentRes)
 
     #as samplesAsCodaMCMC
     samplesList1 <- coda::as.mcmc.list(coda::as.mcmc(res))
