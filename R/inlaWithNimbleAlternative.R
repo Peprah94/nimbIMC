@@ -162,7 +162,19 @@ INLAWiNimDataGeneratingTargetDivide <- function(data,
     samplerControl$nSteps <- mcmcConfiguration[["n.chains"]]
     if(!is.null(additionalPars)){samplerControl$additionalPars <- additionalPars}
     if(is.null(samplerControl$latentIsDependent)) samplerControl$latentIsDependent <- TRUE
-   # if(!is.null(latentWts)) samplerControl$latentWts <- latentWts
+
+    # there are instances, such as spatio-temporal effects where we want to return samples of linear effect
+    # we then need to extract such variables
+    if(!is.null(samplerControl$spatioTemporal)){
+      samplerControl$linearPred <- Cmwtc$getDependencies(nodes = fixedVals, includeData = FALSE, self = FALSE, determOnly = TRUE)
+      samplerControl$returnLinearPred <- TRUE
+    } else {
+      samplerControl$returnLinearPred <- FALSE
+      samplerControl$linearPred <- NULL
+      }
+
+
+      # if(!is.null(latentWts)) samplerControl$latentWts <- latentWts
    # if(!is.null(betaWts)) samplerControl$betaWts <- betaWts
     rr <- inlaISmultiple(mwtc,
                  family,

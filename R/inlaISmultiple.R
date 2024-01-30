@@ -32,13 +32,18 @@ impSampINLAstepMultiple <- nimbleFunction(
                    adaptive,
                    additionalPars,
                    dataVar,
-                   latentIsDependent
+                   latentIsDependent,
+                   returnLinearPred,
+                   linearPred
   ) {
 
     #Note
     # iNode = Nt
     #timeIndex = number of samples at each it = m
     m <- timeIndex
+
+    #check if it is the first index
+    isFirstNode <- iNode == 1
 
     #set continuous vars to beta and discrete vars to disc
     beta <- isNotDiscreteTarget
@@ -124,9 +129,14 @@ impSampINLAstepMultiple <- nimbleFunction(
     #check if we have additional Parameters (especially derived quantities) to save
     isNullAdditionalPars <- is.null(additionalPars)
 
-      fixedValsStoreMatrix <- matrix(0, nrow = timeIndex, ncol = length(fixedVals))
-      linearPredMatrix <- matrix(0, nrow = timeIndex, ncol = nDiscTarNames)
-      linearPreds <- model$getDependencies(fixedVals, determOnly = TRUE)
+
+  fixedValsStoreMatrix <- matrix(0, nrow = timeIndex, ncol = length(fixedVals))
+  #linearPredMatrix <- matrix(0, nrow = timeIndex, ncol = nDiscTarNames)
+ # linearPreds <- model$getDependencies(fixedVals, determOnly = TRUE)
+
+  lenLinPred <- length(linearPred)
+  if(returnLinearPred) linearPredVals <- numeric(length(linearPred))
+
 
   },
   run = function(meanBeta = double(2),
@@ -137,6 +147,10 @@ impSampINLAstepMultiple <- nimbleFunction(
 
     k <- indInc + 1
     m <<- timeIndex
+    linPredIndUpper <- 0
+    linPredIndLower <- 0
+
+    if(isFirstNode & returnLinearPred) linearPredVals <<- values(model, linearPred)
 #print(meanBeta[iNode,])
 #print(sigmaBeta[,,iNode])
     # simulate samples
@@ -161,15 +175,22 @@ impSampINLAstepMultiple <- nimbleFunction(
       values(model, betaNames) <<- betaVals
 
       #for independence in latent variable and alternative MCMC sampler
+
       if(!latentIsDependent){
         if(iNode > 1){
         values(model, fixedVals) <<- fixedValsStoreMatrix[i, ]
-        values(model, linearPreds) <<- linearPredMatrix[i, ]
+       # values(model, linearPreds) <<- linearPredMatrix[i, ]
         }
       }
 
     if(latentIsDependent) model$calculate(depsbetaNames)
       #model$calculate()
+
+      #if(!latentIsDependent) values(model, fixedVals) <<- fixedValsStoreMatrix[i, ]
+      if(returnLinearPred) values(model, linearPred) <<- linearPredVals
+     # model$calculate(depsDiscTarNames)
+      model$calculate()
+
 #print(isLatentBinary)
       if(isLatentBinary == FALSE){
       model$simulate(nodes = discTarNames)
@@ -196,8 +217,8 @@ impSampINLAstepMultiple <- nimbleFunction(
 
       # call the calculate of dependencies of all parameters to update logprobability of all nodes
      logProbAllPars <-  model$calculate(allISparameters)
-#print(logProbAllPars)
-#print(model$getLogProb(discTarNames))
+
+
      #####################
      # Update past importance weights
      ##########################
@@ -223,15 +244,30 @@ impSampINLAstepMultiple <- nimbleFunction(
 
       #values(model, discTarNames) <<- discTarEsts[i, 1:nDiscTarNames]
 
+# log likelihood should include the contribution from beta and latent variables
+
+    if(returnLinearPred){
+      linPredIndLower <- (lenLinPred * (i -1)) +1
+      linPredIndUpper <- (lenLinPred * i)
+      linearPredVals <<- res[linPredIndLower: linPredIndUpper, N+2] #N = length of fixed Vals, and the fist colum returns the marginal likelihood
+      mld <- res[linPredIndLower, 1]
+    } else {
+        mld <- res[i, 1]
+      }
+
+
+
+
 
       # log likelihood should include the contribution from beta and latent variables
      # ii <- (i-1)*nSites + 1
+
       if(latentIsDependent){
-      loglike <- res[i,1] + model$calculate(beta)
+      loglike <- mld + model$calculate(beta)
       }else{
   loglike <- model$calculate(c(dataVar, beta))
       }
-      linearPredMatrix[i, ] <- res[,2]
+      #linearPredMatrix[i, ] <- res[,2]
 
       #calculate weights
       if(iNode > 1){
@@ -293,6 +329,7 @@ impSampINLAstepMultiple <- nimbleFunction(
       betaEstsUpd[k,1:nBetaSims] <<- betaVals
       betaEstsUpd[k,(nBetaSims+1)] <<- wts[i]
       print(k)
+
       #wtsLatVal <- wtsLatent[i]
      mvEWSamples["latentWeights", k][1] <<- wtsLatent[i]  #mvEWSamples["wtsLatent", i][iNode]
       mvEWSamples["betaWeights", k][1] <<- wts[i]
@@ -486,14 +523,21 @@ inlaISmultiple <- nimbleFunction(
     adaptive <- extractControlElement(control, 'adaptive',  TRUE)
     additionalPars <- extractControlElement(control, 'additionalPars',  NULL)
     latentIsDependent <- extractControlElement(control, 'latentIsDependent',  TRUE)
-    #betaWts <- extractControlElement(control, 'betaWts',  NULL)
-    #latentWts <- extractControlElement(control, 'latentWts',  NULL)
+
+    betaWts <- extractControlElement(control, 'betaWts',  NULL)
+    latentWts <- extractControlElement(control, 'latentWts',  NULL)
+    linearPred <- extractControlElement(control, 'linearPred',  NULL)
+    returnLinearPred <- extractControlElement(control, 'returnLinearPred',  FALSE)
+
 
     #latentIsDependent must be logical
     if(!is.logical(latentIsDependent)) stop("latentIsDependent must be either TRUE or FALSE, indicating whether the latent variable is dependent on the other MCMC parameters.")
     if(!is.logical(adaptive)) stop("adaptive must be logical: either TRUE or FALSE, indicating whether the parameters of the proposal distribution are adapted or not.")
 
-
+    #returnLinear must be logical
+    if(!is.logical(returnLinearPred)) stop("return Linear predictor must either be TRUE or FALSE")
+    # if returnLinear is TRUE, linear pred must not be false
+    if(isTRUE(returnLinearPred) & is.null(linearPred)) stop("return Linear predictor cannot be TRUE and the Linear predictor variables be NULL")
 
 
      #Note
@@ -606,7 +650,9 @@ inlaISmultiple <- nimbleFunction(
                                                      adaptive,
                                                      additionalPars,
                                                      dataVar,
-                                                     latentIsDependent
+                                                     latentIsDependent,
+                                                     returnLinearPred,
+                                                     linearPred
       )
     }
 
