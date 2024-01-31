@@ -169,10 +169,15 @@ impSampINLAstepMultiple <- nimbleFunction(
       }
 
       betaEsts[i, 1:nBetaSims] <<- betaVals
-      #print(betaVals)
+
+    }
+      # If we need linear Predictor to simulate latent nodes
+    #then we fit the model z_{i-1}|beta_sim
+    if(returnLinearPred)  res <- nimbleINLA(x, y, beta= betaEsts, extraVars = discTarEsts,fixedVals,  family = fam, nCores = nCores)
 
       #simulate discrete rvs
-      values(model, betaNames) <<- betaVals
+    for(i in 1:m){
+      values(model, betaNames) <<- betaEsts[i, 1:nBetaSims]
 
       #for independence in latent variable and alternative MCMC sampler
 
@@ -187,7 +192,12 @@ impSampINLAstepMultiple <- nimbleFunction(
       #model$calculate()
 
       #if(!latentIsDependent) values(model, fixedVals) <<- fixedValsStoreMatrix[i, ]
-      if(returnLinearPred) values(model, linearPred) <<- linearPredVals
+      if(returnLinearPred){
+        linPredIndLower <- (lenLinPred * (i -1)) +1
+        linPredIndUpper <- (lenLinPred * i)
+        linearPredVals <<- res[linPredIndLower: linPredIndUpper, N+2]
+        values(model, linearPred) <<- linearPredVals
+        }
      # model$calculate(depsDiscTarNames)
       model$calculate()
 
@@ -204,7 +214,7 @@ impSampINLAstepMultiple <- nimbleFunction(
       #print(discTarEsts[i, 1:nDiscTarNames])
       }
 
-    res <- nimbleINLA(x, y, beta= betaEsts, extraVars = discTarEsts,fixedVals,  family = fam, nCores = nCores)
+    if(!returnLinearPred) res <- nimbleINLA(x, y, beta= betaEsts, extraVars = discTarEsts,fixedVals,  family = fam, nCores = nCores)
 
 
     #Calulate weights
@@ -247,9 +257,7 @@ impSampINLAstepMultiple <- nimbleFunction(
 # log likelihood should include the contribution from beta and latent variables
 
     if(returnLinearPred){
-      linPredIndLower <- (lenLinPred * (i -1)) +1
-      linPredIndUpper <- (lenLinPred * i)
-      linearPredVals <<- res[linPredIndLower: linPredIndUpper, N+2] #N = length of fixed Vals, and the fist colum returns the marginal likelihood
+ #N = length of fixed Vals, and the fist colum returns the marginal likelihood
       mld <- res[linPredIndLower, 1]
     } else {
         mld <- res[i, 1]
