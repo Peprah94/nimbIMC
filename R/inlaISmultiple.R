@@ -710,7 +710,7 @@ if(length(proposal) == 1){
           }
 
           # weights of observation process parameters
-          logLikeObsParams <-  model$calculate(dataVar)
+          logLikeObsParams <-  model$calculate()
           if(obsParamsProposal == "normal"){
             wtsObsParams[i] <<- logLikeObsParams - dmnorm_chol(obsParamsVals, meanBetaVar2[iNode,], chol(sigmaBetaVar2[,,iNode]), prec_param = FALSE, log = TRUE) #- model$getLogProb(discTarNames)
           } else if(obsParamsProposal == "studentT"){
