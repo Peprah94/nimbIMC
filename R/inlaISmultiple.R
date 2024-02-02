@@ -169,6 +169,10 @@ if (!is.null(obsParams)){
   obsParamsVals <- rep(0, length = length(obsParamsNames)) #vector to store beta values
   depsObsParamsNames <- model$getDependencies(obsParamsNames, self = FALSE, determOnly = TRUE)
 
+  # Add the obs Process parameter to allISParameters
+  allISparameters <- c(beta, discreteTarget, obsParams)
+  allISparametersDeps <-   model$getDependencies(allISparameters)
+
   # store weights and gamma for observation process parameters
   wtsObsParams <- numeric(m)
   gammaObsParams <- numeric(m)
@@ -178,7 +182,7 @@ if (!is.null(obsParams)){
   obsParamsEsts <- matrix(0, nrow = m, ncol = nObsParamsSims)
 
   # Get observation Params estimates from steps 1 to Nt
-  obsParamsEstsUpd <- matrix(0, nrow = sumNt, ncol = (nObsParamsSims))
+  obsParamsEstsUpd <- matrix(0, nrow = sumNt, ncol = (nObsParamsSims+1))
   rtsObsParams <- matrix(0, nrow = sumNt, ncol = nObsParamsSims)
   rtsObsParamsUpd <- matrix(0, nrow = sumNt, ncol = nObsParamsSims)
   muObsParamsEsts <- matrix(0, nrow = sumNt, ncol = nObsParamsSims)
@@ -205,7 +209,7 @@ if(length(proposal) == 1){
     isNullAdditionalPars <- is.null(additionalPars)
     isNullObsParams <- is.null(obsParams)
 
-    print(paste0("Seperate ecological and observation process:", isNullObsParams))
+   # print(paste0("Seperate ecological and observation process:", isNullObsParams))
   fixedValsStoreMatrix <- matrix(0, nrow = timeIndex, ncol = length(fixedVals))
   #linearPredMatrix <- matrix(0, nrow = timeIndex, ncol = nDiscTarNames)
  # linearPreds <- model$getDependencies(fixedVals, determOnly = TRUE)
@@ -424,7 +428,7 @@ if(length(proposal) == 1){
       #Saving output for updated mean and sd
       betaEstsUpd[k,1:nBetaSims] <<- betaVals
       betaEstsUpd[k,(nBetaSims+1)] <<- wts[i]
-      print(k)
+      #print(k)
 
       #wtsLatVal <- wtsLatent[i]
      mvEWSamples["latentWeights", k][1] <<- wtsLatent[i]  #mvEWSamples["wtsLatent", i][iNode]
@@ -528,7 +532,7 @@ if(length(proposal) == 1){
 
     } else {
 
-      if(isFirstNode & returnLinearPred) linearPredVals <<- values(model, linearPred)
+     # if(isFirstNode & returnLinearPred) linearPredVals <<- values(model, linearPred)
 
       # simulate samples for ecological and process models
       # It's possible that the ecological and observation params are from different distributions
@@ -613,7 +617,7 @@ if(length(proposal) == 1){
 
         # retrieve valaues of ecological parameters
         betaVals <<- betaEsts[i, 1:nBetaSims]
-        values(model, beta) <<- betaVals
+        values(model, betaNames) <<- betaVals
 
         # retrieve values for observation process params
         obsParamsVals <<- obsParamsEsts[i, 1: nObsParamsSims]
@@ -643,8 +647,7 @@ if(length(proposal) == 1){
           if(betaProposal == "normal"){
             #note that getLogProb returns the log of the log density. To get the density, we take exp of the logProb
             nn <- nn +  timeIndex * (dmnorm_chol(betaVals, meanBeta[j,], chol(sigmaBeta[,,j]), prec_param = FALSE, log = FALSE)) #+ exp(model$getLogProb(discTarNames)))
-          }
-          if(betaProposal == "studentT"){
+          } else if(betaProposal == "studentT"){
             nn <- nn +  timeIndex * (dmvt_chol(betaVals, mu = meanBeta[j,], chol(sigmaBeta[,,j]), df= dfTdist, prec_param = FALSE, log = FALSE)) #+ exp(model$getLogProb(discTarNames)))
           }
 
@@ -698,7 +701,7 @@ if(length(proposal) == 1){
         #calculate weights
         if(iNode > 1){
           wts[i] <<- loglike - log(gamma[i]/sumNt)
-          wtsObsParams[i] <<- model$calculate(obsParamsNames) - log(gammaObsParams[i]/sumNt)
+          wtsObsParams[i] <<- model$calculate(c(obsParamsNames, dataVar)) - log(gammaObsParams[i]/sumNt)
         }else{
           # weights of ecological parameters
           if(betaProposal == "normal"){
@@ -710,11 +713,11 @@ if(length(proposal) == 1){
           }
 
           # weights of observation process parameters
-          logLikeObsParams <-  model$calculate()
+          logLikeObsParams <-  model$calculate(c(dataVar, obsParamsNames))
           if(obsParamsProposal == "normal"){
-            wtsObsParams[i] <<- logLikeObsParams - dmnorm_chol(obsParamsVals, meanBetaVar2[iNode,], chol(sigmaBetaVar2[,,iNode]), prec_param = FALSE, log = TRUE) #- model$getLogProb(discTarNames)
+            wtsObsParams[i] <<- logLikeObsParams - log(gammaObsParams[i]/sumNt) #dmnorm_chol(obsParamsVals, meanBetaVar2[iNode,], chol(sigmaBetaVar2[,,iNode]), prec_param = FALSE, log = TRUE) #- model$getLogProb(discTarNames)
           } else if(obsParamsProposal == "studentT"){
-            wtsObsParams[i] <<- logLikeObsParams - dmvt_chol(obsParamsVals, meanBetaVar2[iNode,], chol(sigmaBetaVar2[,,iNode]), df= dfTdist,prec_param = FALSE, log = TRUE)# -  model$getLogProb(discTarNames)
+            wtsObsParams[i] <<- logLikeObsParams - log(gammaObsParams[i]/sumNt) #dmvt_chol(obsParamsVals, meanBetaVar2[iNode,], chol(sigmaBetaVar2[,,iNode]), df= dfTdist,prec_param = FALSE, log = TRUE)# -  model$getLogProb(discTarNames)
           } else if(obsParamsProposal == "prior"){
             wtsObsParams[i] <<- logLikeObsParams - model$calculate(obsParamsNames)
           }
@@ -781,10 +784,10 @@ if(length(proposal) == 1){
         #Saving output for updated mean and sd
         betaEstsUpd[k,1:nBetaSims] <<- betaVals
         betaEstsUpd[k,(nBetaSims+1)] <<- wts[i]
-        obsParamsEstsUpd[k,1: nObsParamsSims] <<- obsParamsVals
-        obsParamsEstsUpd[k,1: (nObsParamsSims + 1)] <<- wtsObsParams[i]
+        obsParamsEstsUpd[k,1:nObsParamsSims] <<- obsParamsVals
+        obsParamsEstsUpd[k, (nObsParamsSims + 1)] <<- wtsObsParams[i]
 
-        print(k)
+       # print(k)
 
         #wtsLatVal <- wtsLatent[i]
         mvEWSamples["latentWeights", k][1] <<- wtsLatent[i]  #mvEWSamples["wtsLatent", i][iNode]
@@ -850,8 +853,8 @@ if(length(proposal) == 1){
             gammaObsParamsUpd <- retObsParams + (m * priorObsParamsDist) #note that Nt = m
             mvEWSamples["gammaObsParams",i][t] <<-  gammaObsParamsUpd
             mvEWSamples["wtsObsParams",i][t] <<- mvEWSamples["logLikeObsParams",i][t] - log(gammaObsParamsUpd/sumNt)
-            obsParamsEstsUpd[indx, 1:nObsParamsSims] <<-obsParamsValsNew
-            obsParamsEstsUpd[indx,(nObsParamsSims+1)] <<- mvEWSamples["wtsObsParams",i][t]
+            obsParamsEstsUpd[indx, 1:nObsParamsSims] <<- obsParamsValsNew
+           obsParamsEstsUpd[indx,(nObsParamsSims+1)] <<- mvEWSamples["wtsObsParams",i][t]
 
           }
         }
@@ -1181,6 +1184,12 @@ inlaISmultiple <- nimbleFunction(
       sigmaStepVar2[,,1] <- initCovVar2
     }
 
+    # Print all the parameters for users:
+    message(paste0("Multiple parameters used sampled with Importance Sampling:", is.null(isNotDiscreteTargetVars2)))
+    message(paste0("Ecological process parameters sampled using Importance Sampling:", isNotDiscreteTargetVars1))
+    message(paste0("Observation process parameters sampled using Importance Sampling:", isNotDiscreteTargetVars2))
+    message(paste0("Latent state sampled using Importance Sampling:", discreteTarget))
+    message(paste0("Other parameters sampled from INLA:", fixedVals))
 
 
     impSampINLAstepFnx <- nimbleFunctionList(importanceSamplingStepVirtualMultiple)
