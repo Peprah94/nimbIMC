@@ -152,7 +152,22 @@ impSampINLAstepMultiple <- nimbleFunction(
 
     #beta estimates at iteration t
     betaEsts <- matrix(0, nrow = m, ncol = nBetaSims)
+
+    # for binary latent states, we need to initialise the model propoerly
+
+    if(isLatentBinary & iNode ==1){
     discTarEsts <- matrix(0, nrow = m, ncol = nDiscTarNames)
+    distVals <- nimble::values(model,  discTarNames)
+    distVals[is.na(distVals)] <- 0
+    print(distVals)
+    for(i in 1:m){
+      discTarEsts[i, 1:nDiscTarNames] <- distVals
+      print(discTarEsts[i, 1:nDiscTarNames])
+    }
+    } else {
+      discTarEsts <- matrix(0, nrow = m, ncol = nDiscTarNames)
+    }
+
 
     # Get beta estimates from steps 1 to Nt
     betaEstsUpd <- matrix(0, nrow = sumNt, ncol = (nBetaSims+1))
