@@ -590,13 +590,25 @@ if(length(proposal) == 1){
         values(model, obsParamsNames) <<- obsParamsEsts[i, 1: nObsParamsSims]
 
         #for independence in latent variable and alternative MCMC sampler
+        # save INLA parameter samples for current time
+        if(returnLinearPred){
+          #N = length of fixed Vals, and the fist colum returns the marginal likelihood
+          linPredIndLower <- (lenLinPred * (i -1)) +1
+          saveResults(fixedVals, res, ind = linPredIndLower)
+        } else {
+          saveResults(fixedVals, res, ind = i)
+        }
 
-        if(!latentIsDependent){
-          if(iNode > 1){
+
+        if(!latentIsDependent & returnLinearPred){
+          fixedValsStoreMatrix[i, ] <<- values(model, fixedVals)
+        }
+        #if(!latentIsDependent){
+         # if(iNode > 1){
             values(model, fixedVals) <<- fixedValsStoreMatrix[i, ]
             # values(model, linearPreds) <<- linearPredMatrix[i, ]
-          }
-        }
+         # }
+       # }
 
         if(latentIsDependent) model$calculate(depsbetaNames)
         #model$calculate()
@@ -633,6 +645,20 @@ if(length(proposal) == 1){
         # retrieve valaues of ecological parameters
         betaVals <<- betaEsts[i, 1:nBetaSims]
         values(model, betaNames) <<- betaVals
+
+# copy fixed values into the model
+        # save INLA parameter samples for current time
+        if(!returnLinearPred){
+          saveResults(fixedVals, res, ind = i)
+
+          if(!latentIsDependent){
+            fixedValsStoreMatrix[i, ] <<- values(model, fixedVals)
+          }
+
+        }
+
+
+      values(model, fixedVals) <<- fixedValsStoreMatrix[i, ]
 
         # retrieve values for observation process params
         obsParamsVals <<- obsParamsEsts[i, 1: nObsParamsSims]
@@ -706,11 +732,11 @@ if(length(proposal) == 1){
         # log likelihood should include the contribution from beta and latent variables
         # ii <- (i-1)*nSites + 1
 
-        if(latentIsDependent){
+        #if(latentIsDependent){
           loglike <- mld + model$calculate(beta)
-        }else{
-          loglike <- model$calculate(c(dataVar, beta))
-        }
+       # }else{
+       #   loglike <- model$calculate(c(dataVar, beta))
+        #}
         #linearPredMatrix[i, ] <- res[,2]
 
         #calculate weights
@@ -755,19 +781,7 @@ if(length(proposal) == 1){
         mvWSamples["logLikeObsParams",i][iNode] <<- logLikeObsParams
         mvEWSamples["logLikeObsParams",i][iNode] <<- logLikeObsParams
 
-        # save INLA parameter samples for current time
-        if(returnLinearPred){
-          #N = length of fixed Vals, and the fist colum returns the marginal likelihood
-          linPredIndLower <- (lenLinPred * (i -1)) +1
-          saveResults(fixedVals, res, ind = linPredIndLower)
-        } else {
-          saveResults(fixedVals, res, ind = i)
-        }
 
-
-        if(!latentIsDependent){
-          fixedValsStoreMatrix[i, ] <<- values(model, fixedVals)
-        }
 
         #values(model, betaWts) <<- wts[i]
         #values(model, latentWts) <<- wtsLatent[i]
