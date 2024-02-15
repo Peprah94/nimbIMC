@@ -1,4 +1,5 @@
-
+#' @import nimble
+#' @import methods
 
 # nimbleconvertToMatrix <- nimble::nimbleRcall(
 #   prototype = function(
@@ -32,7 +33,7 @@ importanceSamplingStepVirtualMultiple <- nimbleFunctionVirtual(
       return(sigma)
     },
     updateMuEcoPars=function(){
-      returnType(double(1))
+      returnType(double(0))
       return(muEcoPars)
     }
   )
@@ -79,8 +80,8 @@ impSampINLAstepMultiple <- nimbleFunction(
     # obsParams refers to observation parameters
     #get the distribution of the discrete variable
 
-    ecoParamsProposal <- unique(model$getDistribution(ecoParams))
-    obsParamsProposal <- unique(model$getDistribution(obsParams))
+    ecoParamsProposal <- "binomial" #unique(model$getDistribution(ecoParams))
+    obsParamsProposal <- "normal"#unique(model$getDistribution(obsParams))
 
     # setting up parameters
     N <- length(fixedVals) #length of INLA parameters
@@ -99,8 +100,8 @@ impSampINLAstepMultiple <- nimbleFunction(
     isEcoParamsBinary <- all(model$isBinary(ecoParams) == TRUE)
 
     # select those that are data
-    binNodesToSimulate <- ecoParams[!model$isData(ecoParams)]
-    nBinNodesToSimulate <- length(binNodesToSimulate)
+    binNodesToSimulate <- c(ecoParams[!model$isData(ecoParams)])
+    nBinNodesToSimulate <- c(length(binNodesToSimulate))
     binNodesToFix <- ecoParams[model$isData(ecoParams)]
     nBinNodesToFix <- length(binNodesToFix)
     binNodesToSimulateVals <- rep(0, length = nBinNodesToSimulate)
@@ -132,7 +133,7 @@ impSampINLAstepMultiple <- nimbleFunction(
     # estimates at iteration t
     obsParamsEst <- matrix(0, nrow = m, ncol = nObsParams)
     ecoParamsEst <- matrix(0, nrow = m, ncol = nEcoParams)
-
+    muEcoParsEst <- rep(0, m)
 
     # Get obsParams estimates from steps 1 to Nt
     obsParamsEstUpd <- matrix(0, nrow = sumNt, ncol = (nObsParams+1))
@@ -174,24 +175,26 @@ impSampINLAstepMultiple <- nimbleFunction(
       for(i in 1:m){
 
         # For now, simulate beta's from proposal distribution
-        if(ecoParamsProposal == "dnorm"){
-          ecoParamsVals <<- rmnorm_chol(1, meanBeta[iNode,], chol(sigmaBeta[,,iNode]), prec_param = FALSE)
-        } else if(ecoParamsProposal == "studentT"){
-          ecoParamsVals <<- rmvt_chol(1, mu = meanBeta[iNode,], chol(sigmaBeta[,,iNode]), df= dfTdist,prec_param = FALSE)
-        } else if(ecoParamsProposal == "prior"){
+      #  if(ecoParamsProposal == "dnorm"){
+      #    ecoParamsVals <<- rmnorm_chol(1, meanBeta[iNode,], chol(sigmaBeta[,,iNode]), prec_param = FALSE)
+       # } else if(ecoParamsProposal == "studentT"){
+       #   ecoParamsVals <<- rmvt_chol(1, mu = meanBeta[iNode,], chol(sigmaBeta[,,iNode]), df= dfTdist,prec_param = FALSE)
+        #} else
+          if(ecoParamsProposal == "prior"){
           model$simulate(nodes = ecoParams)
-          ecoParamsVals <<- values(model, betaNames)
-        } else if(ecoParamsProposal == "dbin"){
-          ranEco <- rbinom(nBinNodesToSimulate, prob = meanDisc[iNode], size = 1)
-          values(model, binNodesToSimulate) <<- ranEco
-          values(model, binNodesToFix) <<- binNodesToFixVals
+          ecoParamsVals <<- values(model, ecoParams)
+        } else if(ecoParamsProposal == "binomial"){
+          ranEco <- rmybinom(n = nBinNodesToSimulate, prob = meanDisc[iNode], size = 1)
+         # print(ranEco)
+         values(model, binNodesToSimulate) <<- ranEco[1:nBinNodesToSimulate]
+         values(model, binNodesToFix) <<- binNodesToFixVals
           ecoParamsVals <<- values(model, ecoParams)
         }
 
         ecoParamsEst[i, 1:nEcoParams] <<- ecoParamsVals
 
         # Now simulate the observation Parameters
-        if(obsParamsProposal == "normal" | obsParamsProposal == "dnorm"){
+        if(obsParamsProposal == "normal"){
           obsParamsVals <<- rmnorm_chol(1, meanBeta[iNode,], chol(sigmaBeta[,,iNode]), prec_param = FALSE)
         } else if(obsParamsProposal == "studentT"){
           obsParamsVals <<- rmvt_chol(1, mu = meanBeta[iNode,], chol(sigmaBeta[,,iNode]), df= dfTdist,prec_param = FALSE)
@@ -205,7 +208,7 @@ impSampINLAstepMultiple <- nimbleFunction(
       }
       # If we need linear Predictor to simulate latent nodes
       #then we fit the model z_{i-1}|beta_sim
-      res <- nimbleINLA(x, y, beta = ecoParamsEst, extraVars = ecoParamsEst, fixedVals,  family = fam, nCores = nCores)
+      res <- nimbleINLA(x, y, extraVars = ecoParamsEst, fixedVals,  family = fam, nCores = nCores)
 
       #simulate discrete rvs
       for(i in 1:m){
@@ -227,24 +230,29 @@ impSampINLAstepMultiple <- nimbleFunction(
         # Update past importance weights
         ##########################
         nn <- 0
+        rt <- 0
        # nnObsParams <- 0
 
         # since each observation process parameters can have different proposals
         # we need to estimate their weights seperately
         for(j in 1:iNode){
+          if(ecoParamsProposal == "binomial"){
+            rt <- dmybinom(ecoParamsVals, size = 1, prob = meanDisc[j], log = FALSE)
+          } else {
+            rt <- 0
+          }
 
           # estimating gamma components for ecological process
           if(obsParamsProposal == "normal"){
             #note that getLogProb returns the log of the log density. To get the density, we take exp of the logProb
-            if(ecoParamsProposal == "dbin"){
-              rt <- dbinom(ecoParamsVals, size = 1, prob = meanDisc[j], log = FALSE)
-            }
-            nn <- nn +  timeIndex * (dmnorm_chol(betaVals, meanBeta[j,], chol(sigmaBeta[,,j]), prec_param = FALSE, log = FALSE) * rt)
+
+            nn <- nn +  timeIndex * (dmnorm_chol(obsParamsVals, meanBeta[j,], chol(sigmaBeta[,,j]), prec_param = FALSE, log = FALSE) * rt)
           } else if(obsParamsProposal == "studentT"){
-            nn <- nn +  timeIndex * (dmvt_chol(betaVals, mu = meanBeta[j,], chol(sigmaBeta[,,j]), df= dfTdist, prec_param = FALSE, log = FALSE) *rt)
+            nn <- nn +  timeIndex * (dmvt_chol(obsParamsVals, mu = meanBeta[j,], chol(sigmaBeta[,,j]), df= dfTdist, prec_param = FALSE, log = FALSE) *rt)
           }
 
         }
+        print(nn)
 
         gamma[i] <<- nn
         #gammaObsParams[i] <<- nnObsParams
@@ -262,7 +270,7 @@ impSampINLAstepMultiple <- nimbleFunction(
         # log likelihood should include the contribution from beta and latent variables
        mld <- res[i, 1]
 
-
+print(mld)
 
 
 
@@ -272,6 +280,8 @@ impSampINLAstepMultiple <- nimbleFunction(
 
         #if(latentIsDependent){
           loglike <- mld + model$calculate(c(dataVar, obsParams))
+
+          print(model$calculate(c(dataVar, obsParams)))
        # }else{
        #   loglike <- model$calculate(c(dataVar, beta))
         #}
@@ -281,6 +291,7 @@ impSampINLAstepMultiple <- nimbleFunction(
         #if(iNode > 1){
           wts[i] <<- loglike - log(gamma[i]/sumNt)
 
+          print(wts[i])
         # save the numerator of the weights for the updating step
         mvWSamples["logLike",i][iNode] <<- loglike
         mvEWSamples["logLike",i][iNode] <<- loglike
@@ -295,14 +306,14 @@ impSampINLAstepMultiple <- nimbleFunction(
         #values(model, latentWts) <<- wtsLatent[i]
 
         if(isNullAdditionalPars){
-          nimCopy(model, mvEWSamples, nodes = ecoParams, nodesTo = beta, row=1, rowTo = k)
+          nimCopy(model, mvEWSamples, nodes = ecoParams, nodesTo = ecoParams, row=1, rowTo = k)
           nimCopy(model, mvEWSamples, nodes = obsParams, nodesTo = obsParams, row=1, rowTo = k)
           nimCopy(model, mvEWSamples, nodes = fixedVals, nodesTo = fixedVals, row = 1, rowTo = k)
           #nimCopy(model, mvEWSamples, nodes = discTarNames, nodesTo = discTarNames, row = 1, rowTo = k)
           #nimCopy(model, mvEWSamples, nodes = latentWts, nodesTo = latentWts, row = 1, rowTo = k)
           #nimCopy(model, mvEWSamples, nodes = betaWts, nodesTo = betaWts, row = 1, rowTo = k)
         }else{
-          nimCopy(model, mvEWSamples, nodes = ecoParams, nodesTo = beta, row=1, rowTo = k)
+          nimCopy(model, mvEWSamples, nodes = ecoParams, nodesTo = ecoParams, row=1, rowTo = k)
           nimCopy(model, mvEWSamples, nodes = obsParams, nodesTo = obsParams, row=1, rowTo = k)
           nimCopy(model, mvEWSamples, nodes = fixedVals, nodesTo = fixedVals, row = 1, rowTo = k)
           #nimCopy(model, mvEWSamples, nodes = discTarNames, nodesTo = discTarNames, row = 1, rowTo = k)
@@ -314,7 +325,7 @@ impSampINLAstepMultiple <- nimbleFunction(
         #save wts and gamma at Nt, since it won't be updated
         mvEWSamples["gamma",i][iNode] <<- gamma[i]
         mvEWSamples["wts", i][iNode] <<- wts[i]
-        mvEWSamples["gammaObsParams",i][iNode] <<- gammaObsParams[i]
+        mvEWSamples["gammaObsParams",i][iNode] <<- gamma[i]
         mvEWSamples["wtsObsParams", i][iNode] <<- wts[i]
         mvEWSamples["wtsLatent", i][iNode] <<- wts[i]
 
@@ -359,21 +370,22 @@ impSampINLAstepMultiple <- nimbleFunction(
             allIsparslike <- model$calculate(allISparameters)
 
             # calculate prior distribution for ecological params
-            if(ecoParamsProposal == "normal"){
-              priorDist <- dmnorm_chol(betaValsNew, meanBeta[iNode,], chol(sigmaBeta[,,iNode]), prec_param = FALSE, log = FALSE) #+ exp(model$getLogProb(discTarNames))
-            } else if(ecoParamsProposal == "studentT"){
-              priorDist <- dmvt_chol(betaValsNew, mu = meanBeta[iNode, ], chol(sigmaBeta[,,iNode]), df= dfTdist,prec_param = FALSE, log = FALSE) #+ exp(model$getLogProb(discTarNames))
-            } else if(ecoParamsProposal == "prior"){
-              priorDist <- exp(model$calculate(beta))
-            } else if (ecoParamsProposal == "dbin"){
-              priorDist <-  dbinom(ecoParamsVals, size = 1, prob = meanDisc[iNode], log = FALSE)
+           # if(ecoParamsProposal == "normal"){
+           #   priorDist <- dmnorm_chol(betaValsNew, meanBeta[iNode,], chol(sigmaBeta[,,iNode]), prec_param = FALSE, log = FALSE) #+ exp(model$getLogProb(discTarNames))
+           # } else if(ecoParamsProposal == "studentT"){
+           #   priorDist <- dmvt_chol(betaValsNew, mu = meanBeta[iNode, ], chol(sigmaBeta[,,iNode]), df= dfTdist,prec_param = FALSE, log = FALSE) #+ exp(model$getLogProb(discTarNames))
+           # } else
+              if(ecoParamsProposal == "prior"){
+              priorDist <- exp(model$calculate(ecoParams))
+            } else if (ecoParamsProposal == "binomial"){
+              priorDist <-  dmybinom(ecoParamsVals, size = 1, prob = meanDisc[iNode], log = FALSE)
             }
 
             # calculate prior distribution for ecological params
             if(obsParamsProposal == "normal"){
-              priorObsParamsDist <- dmnorm_chol(obsParamsValsNew, meanBetaVar2[iNode,], chol(sigmaBetaVar2[,,iNode]), prec_param = FALSE, log = FALSE) #+ exp(model$getLogProb(discTarNames))
+              priorObsParamsDist <- dmnorm_chol(obsParamsValsNew, meanBeta[iNode,], chol(sigmaBeta[,,iNode]), prec_param = FALSE, log = FALSE) #+ exp(model$getLogProb(discTarNames))
             } else if(obsParamsProposal == "studentT"){
-              priorObsParamsDist <- dmvt_chol(obsParamsValsNew, mu = meanBetaVar2[iNode, ], chol(sigmaBetaVar2[,,iNode]), df= dfTdist,prec_param = FALSE, log = FALSE) #+ exp(model$getLogProb(discTarNames))
+              priorObsParamsDist <- dmvt_chol(obsParamsValsNew, mu = meanBeta[iNode, ], chol(sigmaBeta[,,iNode]), df= dfTdist,prec_param = FALSE, log = FALSE) #+ exp(model$getLogProb(discTarNames))
             } else if(obsParamsProposal == "prior"){
               priorObsParamsDist <- exp(model$calculate(obsParams))
             }
@@ -392,8 +404,8 @@ impSampINLAstepMultiple <- nimbleFunction(
             gammaObsParamsUpd <- retObsParams + (m * priorObsParamsDist) #note that Nt = m
             mvEWSamples["gammaObsParams",i][t] <<-  gammaObsParamsUpd
             mvEWSamples["wtsObsParams",i][t] <<- mvEWSamples["logLikeObsParams",i][t] - log(gammaObsParamsUpd/sumNt)
-            obsParamsEstUpd[indx, 1:nObsParamsSims] <<- obsParamsValsNew
-           obsParamsEstUpd[indx,(nObsParamsSims+1)] <<- mvEWSamples["wts",i][t]
+            obsParamsEstUpd[indx, 1:nObsParams] <<- obsParamsValsNew
+           obsParamsEstUpd[indx,(nObsParams+1)] <<- mvEWSamples["wts",i][t]
 
           }
         }
@@ -410,6 +422,7 @@ impSampINLAstepMultiple <- nimbleFunction(
         wtsUpd <- obsParamsEstUpd[1:sumNt,(nObsParams+1)]
         maxWtsUpd <- max(wts)
         nWeightsUpd <- exp(wtsUpd - maxWtsUpd)
+        print(nWeightsUpd)
         #betaWts <<- nWeightsUpd
 
 
@@ -432,9 +445,9 @@ impSampINLAstepMultiple <- nimbleFunction(
 
         # updating ecological parameters
         for(i in 1:sumNt){
-          muEcoParsEst[i] <- sum(ecoParamsEstUpd[1:nObsParams, i] * nWeightsUpd[i])
+          muEcoParsEst[i] <<- (sum(ecoParamsEstUpd[1:nEcoParams, i])/nEcoParams)* nWeightsUpd[i]
         }
-        muEcoPars <<- sum(muEcoParsEst[1:sumNt])
+        muEcoPars <<- sum(muEcoParsEst[1:sumNt])/(sum(nWeightsUpd[1:sumNt]))
       }else{
         mu <<- meanBeta[iNode, ]
         sigma <<- sigmaBeta[ , , iNode]
@@ -446,8 +459,6 @@ impSampINLAstepMultiple <- nimbleFunction(
 
       print(mu)
       print(sigma)
-      print(muObsParams)
-      print(sigmaObsParams)
       print(muEcoPars)
 
 
@@ -489,12 +500,8 @@ impSampINLAstepMultiple <- nimbleFunction(
       return(sigma)
     },
     updateMuEcoPars=function(){
-      returnType(double(1))
+      returnType(double(0))
       return(muEcoPars)
-    },
-    returnLatentWts = function(){
-      returnType(double(1))
-      return(wtsLatent)
     }
   )
 )
@@ -518,7 +525,7 @@ inlaISmultiple <- nimbleFunction(
     initMean <- extractControlElement(control, 'initMean',  NULL)
     initCov <- extractControlElement(control, 'initCov',  NULL)
     initEcoPars <- extractControlElement(control, 'initEcoPars',  NULL)
-    initModel <- extractControlElement(control, 'initModel',  FALSE)
+    initModel <- extractControlElement(control, 'initModel',  TRUE)
     timeIndex <- extractControlElement(control, 'timeIndex',  double()) #Nt
     nSteps <- extractControlElement(control, 'nSteps',  integer()) #Number of steps at each direction
     nCores <- extractControlElement(control, 'nCores',  NULL)

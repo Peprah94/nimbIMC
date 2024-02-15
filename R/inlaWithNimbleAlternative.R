@@ -1,4 +1,5 @@
 
+
 #' Fitting INLA within NIMBLE for Data Generating process
 #'
 #' This function sets the paramters in the appropriate manner to be used by the
@@ -184,7 +185,8 @@ INLAWiNimDataGeneratingTargetDivide <- function(data,
                  control = samplerControl)
 
     #compile Model
-    compileModel <- compileNimble(mwtc, rr)
+    compileModel <- compileNimble(mwtc, rr,
+                                  showCompilerOutput = FALSE)
 
 
     startTime <- Sys.time()
