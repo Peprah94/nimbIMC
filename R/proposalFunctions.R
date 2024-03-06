@@ -1,22 +1,40 @@
 
 
+# proposalDistributionVirtual <- nimbleFunctionVirtual(
+#   setup = function(model,
+#                    binNodesToSimulate,
+#                    binNodesToFix,
+#                    binNodesToFixVals,
+#                    params){},
+#   run = function(meanDisc = double(0),
+#                  n = integer(0),
+#                  size = integer(0)){
+#     returnType(double(1))
+#   }
+# )
+
 proposalDistributionVirtual <- nimbleFunctionVirtual(
-  run = function() {
-    returnType(double())
+  name = 'proposalDistributionVirtual',
+  run = function(meanDisc = double(0),
+                 n = integer(0)
+                 ) {
+    returnType(double(1))
   }
 )
 
 
+
 # Binomial Proposal distribution
 binProposal <- nimbleFunction(
+  contains =  proposalDistributionVirtual,
   setup = function(model,
                    binNodesToSimulate,
                    binNodesToFix,
                    binNodesToFixVals,
-                   params){},
+                   params,
+                   size){},
   run = function(meanDisc = double(0),
-                 n = integer(0),
-                 size = integer(0)){
+                 n = integer(0)){
     ranEco <- rmybinom(n, prob = meanDisc, size)
     values(model, binNodesToSimulate) <<- ranEco[1:n]
     values(model, binNodesToFix) <<- binNodesToFixVals
@@ -29,12 +47,13 @@ binProposal <- nimbleFunction(
 
 # poisson Proposal distribution
 poisProposal <- nimbleFunction(
+  contains =  proposalDistributionVirtual,
   setup = function(model,
-                   params){},
+                   params,
+                   lowerBound = double(1),
+                   includeLowerBound = integer(0)){},
   run = function(meanDisc = double(0),
-                 n = integer(0),
-                 lowerBound = double(1),
-                 includeLowerBound = integer(0)){
+                 n = integer(0)){
     if(n != length(params)) stop("n should be equal to number of ecological parameters")
     paramsVals <- rmypois(n, lambda = meanDisc, lowerBound =lowerBound, includeLowerBound = includeLowerBound)
     returnType(double(1))
@@ -54,8 +73,18 @@ priorProposal <- nimbleFunction(
   }
 )
 
+
+obsDistVirtual <- nimbleFunctionVirtual(
+  name = 'obsDistVirtual',
+  run = function(mean = double(1),
+                 sigma = double(2)){
+    returnType(double(1))
+  }
+)
+
 # Normal distribution
 normalProposal <- nimbleFunction(
+  contains = "obsDistVirtual",
   setup = function(model,
                    params){},
   run = function(mean = double(1),
@@ -69,16 +98,14 @@ normalProposal <- nimbleFunction(
 
 # student T distribution
 studentProposal <- nimbleFunction(
+  contains = "obsDistVirtual",
   setup = function(model,
-                   params){},
+                   params,
+                   df){},
   run = function(mean = double(1),
-                 sigma = double(2),
-                 df = double(0)){
+                 sigma = double(2)){
     paramsVals <- rmvt_chol(1, mu = mean, chol(sigma), df= df,prec_param = FALSE)
     returnType(double(1))
     return(paramsVals)
   }
 )
-
-
-

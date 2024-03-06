@@ -90,7 +90,12 @@ adaptingFunction <- nimbleFunction(
     indInc <- (iNode - 1)*m #sum from N1 to Nt-1
     sumNt <- m + indInc
 
+    # estimates at iteration t
+    obsParamsEst <- matrix(0, nrow = m, ncol = nObsParams)
+    ecoParamsEst <- matrix(0, nrow = m, ncol = nEcoParams)
+    muEcoParsEst <- rep(0, m)
 
+    muEcoPars <- 0.5
     # Get obsParams estimates from steps 1 to Nt
     obsParamsEstUpd <- matrix(0, nrow = sumNt, ncol = (nObsParams+1))
     ecoParamsEstUpd <- matrix(0, nrow = sumNt, ncol = (nEcoParams+1))

@@ -1,5 +1,5 @@
-#' @import nimble
-#' @import methods
+# @import nimble
+# @import methods
 
 # nimbleconvertToMatrix <- nimble::nimbleRcall(
 #   prototype = function(
@@ -76,23 +76,9 @@ impSampINLAstepMultiple <- nimbleFunction(
     isFirstNode <- iNode == 1
 
 
-    # set names of parameters
-    # ecoParams refers to ecological parameters
-    # obsParams refers to observation parameters
-    #get the distribution of the discrete variable
-distEcoParams <- unique(model$getDistribution(ecoParams))
-if(distEcoParams == "dbin"){
-  ecoParamsProposal <- "binomial"
-} else if (distEcoParams == "dpois"){
-  ecoParamsProposal <- "poisson"
-  includeLowerBound <- TRUE
-  if(is.null(poissonLowerBound)){
-    poissonLowerBound <- rep(0, length(model$expandNodeNames(nodes = ecoParams)))
-    includeLowerBound <- FALSE
-    }
-}
+
      #unique(model$getDistribution(ecoParams))
-    obsParamsProposal <- "normal"#unique(model$getDistribution(obsParams))
+ #unique(model$getDistribution(obsParams))
 
     # setting up parameters
     N <- length(fixedVals) #length of INLA parameters
@@ -118,6 +104,41 @@ if(distEcoParams == "dbin"){
     binNodesToSimulateVals <- rep(0, length = nBinNodesToSimulate)
     binNodesToFixVals <- rep(1, length = nBinNodesToFix)
 
+    # set names of parameters
+    # ecoParams refers to ecological parameters
+    # obsParams refers to observation parameters
+    #get the distribution of the discrete variable
+    distEcoParams <- unique(model$getDistribution(ecoParams))
+    ecoPropDist <- nimbleFunctionList(proposalDistributionVirtual)
+
+    if(distEcoParams == "dbin"){
+      ecoParamsProposal <- "binomial"
+    ecoPropDist[[1]] <- binProposal(model, binNodesToSimulate, binNodesToFix, binNodesToFixVals, ecoParams, size = 1)
+    }
+
+    if (distEcoParams == "dpois"){
+      ecoParamsProposal <- "poisson"
+      includeLowerBound <- 1
+      if(is.null(poissonLowerBound)){
+        poissonLowerBound <- rep(0, length(model$expandNodeNames(nodes = ecoParams)))
+        includeLowerBound <- 0
+      }
+    ecoPropDist[[1]] <- poisProposal(model, ecoParams, lowerBound = poissonLowerBound, includeLowerBound = includeLowerBound)
+    }# else {
+
+
+    ecoPropDist3 <- poisProposal(model, ecoParams)
+      ecoPropDist1 <- priorProposal(model, ecoParams)
+    #}
+
+    obsParamsProposal <- proposal
+if(obsParamsProposal == 'normal'){
+  obsPropDist <-normalProposal(model, obsParams)
+} else if(obsParamsProposal == 'studentT'){
+  obsPropDist <-studentProposal(model, obsParams)
+} else{
+  obsPropDist <- priorProposal(model, obsParams)
+}
 
     #get dependencies of both parameters. Will be used to calculate weights at each time
     allISparameters <- c(ecoParams, obsParams)
@@ -163,6 +184,7 @@ if(distEcoParams == "dbin"){
 
 
 
+
   },
   run = function(meanBeta = double(2),
                  sigmaBeta = double(3),
@@ -191,22 +213,21 @@ if(distEcoParams == "dbin"){
        # } else if(ecoParamsProposal == "studentT"){
        #   ecoParamsVals <<- rmvt_chol(1, mu = meanBeta[iNode,], chol(sigmaBeta[,,iNode]), df= dfTdist,prec_param = FALSE)
         #} else
-          if(ecoParamsProposal == "prior"){
-          model$simulate(nodes = ecoParams)
-          ecoParamsVals <<- values(model, ecoParams)
-        } else if(ecoParamsProposal == "binomial"){
-          ranEco <- rmybinom(n = nBinNodesToSimulate, prob = meanDisc[iNode], size = 1)
-         # print(ranEco)
-         values(model, binNodesToSimulate) <<- ranEco[1:nBinNodesToSimulate]
-         values(model, binNodesToFix) <<- binNodesToFixVals
-          ecoParamsVals <<- values(model, ecoParams)
-        } else if(ecoParamsProposal == "poisson"){
-          ecoParamsVals <<- rmypois(n = nEcoParams, lambda = meanDisc[iNode], lowerBound = poissonLowerBound, includeLowerBound = includeLowerBound)
-         #values(model, ecoParams) <<- ranEco[1:nEcoParams]
-         #ecoParamsVals <<- values(model, ecoParams)
+         # if(ecoParamsProposal == "prior"){
+        #    ecoParamsEst[i, 1:nEcoParams] <<- ecoPropDist1$run()
+        #}
+        if(ecoParamsProposal == "binomial"){
+          ecoParamsVal <- ecoPropDist[[1]]$run(meanDisc = meanDisc[iNode], n = nEcoParams)
+          ecoParamsEst[i, 1:nEcoParams] <<- ecoParamsVal[1:nEcoParams]
+            #ecoPropDist2$run(meanDisc = meanDisc[iNode], n = nEcoParams, size = 1)
+        }
+        if(ecoParamsProposal == "poisson"){
+          ecoParamsEst[i, 1:nEcoParams] <<- ecoPropDist[[1]]$run(meanDisc = meanDisc[iNode], n = nEcoParams)
+            #ecoPropDist3$run(meanDisc = meanDisc[iNode], n = nEcoParams, lowerBound = poissonLowerBound, includeLowerBound = includeLowerBound)
+           #ecoParamsVals <<- rmypois(n = nEcoParams, lambda = meanDisc[iNode], lowerBound = poissonLowerBound, includeLowerBound = includeLowerBound)
+
         }
 
-        ecoParamsEst[i, 1:nEcoParams] <<- ecoParamsVals
 
         # Now simulate the observation Parameters
         if(obsParamsProposal == "normal"){

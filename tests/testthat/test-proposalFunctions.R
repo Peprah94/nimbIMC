@@ -46,10 +46,10 @@ binNodeToSimulate <- ecoParams[!mwtc$isData(ecoParams)]
 binNodeToFix <- ecoParams[mwtc$isData(ecoParams)]
 binNodesToFixVals <- rep(1, 5)
 
-binProposaltest <- binProposal(mwtc, binNodeToSimulate, binNodeToFix,binNodesToFixVals, ecoParams)
+binProposaltest <- binProposal(mwtc, binNodeToSimulate, binNodeToFix,binNodesToFixVals, ecoParams, size = 1)
 
 cmwtc <- compileNimble(binProposaltest, mwtc)
-expect_equal(class(cmwtc$binProposaltest$run(meanDisc = 0.5, n = 5, size = 1)), "numeric")
+expect_equal(class(cmwtc$binProposaltest$run(meanDisc = 0.5, n = 5)), "numeric")
 })
 
 
@@ -96,10 +96,10 @@ test_that("Testing Poisson proposal distribution",{
 
   ecoParams <- mwtc$expandNodeNames("y")
 
-  poisProposaltest <- poisProposal(mwtc, ecoParams)
+  poisProposaltest <- poisProposal(mwtc, ecoParams, lowerBound = rep(0, 10), includeLowerBound = 0)
 
   cmwtc <- compileNimble(poisProposaltest, mwtc)
-  expect_equal(class(cmwtc$poisProposaltest$run(n = 10, meanDisc = 2, lowerBound = rep(0, 10), includeLowerBound = 0)), "numeric")
+  expect_equal(class(cmwtc$poisProposaltest$run(n = 10, meanDisc = 2)), "numeric")
   expect_error(cmwtc$poisProposaltest$run(n = 5, meanDisc = 2, lowerBound = rep(0, 10), includeLowerBound = 0))
 })
 
@@ -202,7 +202,7 @@ test_that("Testing normal proposal distribution",{
   expect_equal(class(cmwtc$normalProposaltest$run(mean = rep(0, 10), sigma=diag(10))), "numeric")
 })
 
-test_that("Testing normal proposal distribution",{
+test_that("Testing student-T proposal distribution",{
   code <- nimble::nimbleCode({
 
     for(i in 1:2){
@@ -245,9 +245,9 @@ test_that("Testing normal proposal distribution",{
 
   ecoParams <- mwtc$expandNodeNames("y")
 
-  studentProposaltest <- studentProposal(mwtc, ecoParams)
+  studentProposaltest <- studentProposal(mwtc, ecoParams, df = 2)
 
   cmwtc <- compileNimble(studentProposaltest, mwtc)
 
-  expect_equal(class(cmwtc$studentProposaltest$run(mean = rep(0, 10), sigma=diag(10), df = 2)), "numeric")
+  expect_equal(class(cmwtc$studentProposaltest$run(mean = rep(0, 10), sigma=diag(10))), "numeric")
 })

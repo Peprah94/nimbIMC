@@ -186,7 +186,8 @@ INLAWiNimDataGeneratingTargetDivide <- function(data,
                  control = samplerControl)
 
     #compile Model
-    compileModel <- compileNimble(mwtc, rr,
+    compileModel <- compileNimble(mwtc,
+                                  rr,
                                   showCompilerOutput = TRUE)
 
 
