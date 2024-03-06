@@ -63,7 +63,8 @@ impSampINLAstepMultiple <- nimbleFunction(
                    adaptive,
                    additionalPars,
                    dataVar,
-                   latentIsDependent
+                   latentIsDependent,
+                   poissonLowerBound
   ) {
 
     #Note
@@ -79,8 +80,18 @@ impSampINLAstepMultiple <- nimbleFunction(
     # ecoParams refers to ecological parameters
     # obsParams refers to observation parameters
     #get the distribution of the discrete variable
-
-    ecoParamsProposal <- "binomial" #unique(model$getDistribution(ecoParams))
+distEcoParams <- unique(model$getDistribution(ecoParams))
+if(distEcoParams == "dbin"){
+  ecoParamsProposal <- "binomial"
+} else if (distEcoParams == "dpois"){
+  ecoParamsProposal <- "poisson"
+  includeLowerBound <- TRUE
+  if(is.null(poissonLowerBound)){
+    poissonLowerBound <- rep(0, length(model$expandNodeNames(nodes = ecoParams)))
+    includeLowerBound <- FALSE
+    }
+}
+     #unique(model$getDistribution(ecoParams))
     obsParamsProposal <- "normal"#unique(model$getDistribution(obsParams))
 
     # setting up parameters
@@ -189,6 +200,10 @@ impSampINLAstepMultiple <- nimbleFunction(
          values(model, binNodesToSimulate) <<- ranEco[1:nBinNodesToSimulate]
          values(model, binNodesToFix) <<- binNodesToFixVals
           ecoParamsVals <<- values(model, ecoParams)
+        } else if(ecoParamsProposal == "poisson"){
+          ecoParamsVals <<- rmypois(n = nEcoParams, lambda = meanDisc[iNode], lowerBound = poissonLowerBound, includeLowerBound = includeLowerBound)
+         #values(model, ecoParams) <<- ranEco[1:nEcoParams]
+         #ecoParamsVals <<- values(model, ecoParams)
         }
 
         ecoParamsEst[i, 1:nEcoParams] <<- ecoParamsVals
@@ -222,7 +237,11 @@ impSampINLAstepMultiple <- nimbleFunction(
         model$calculate()
 
         # retrieve valaues of ecological parameters
+        if(isEcoParamsBinary){
+        ecoParamsVals[1:nBinNodesToSimulate] <<- ecoParamsEst[i, 1:nEcoParams]
+        } else {
         ecoParamsVals <<- ecoParamsEst[i, 1:nEcoParams]
+        }
         obsParamsVals <<- obsParamsEst[i, 1: nObsParams]
 
 
@@ -238,8 +257,9 @@ impSampINLAstepMultiple <- nimbleFunction(
         for(j in 1:iNode){
           if(ecoParamsProposal == "binomial"){
             rt <- dmybinom(ecoParamsVals, size = 1, prob = meanDisc[j], log = FALSE)
-          } else {
-            rt <- 0
+          } else if(ecoParamsProposal == "poisson"){
+            rt <- dmypois(ecoParamsVals, lambda = meanDisc[j], log = FALSE)
+           # print(rt)
           }
 
           # estimating gamma components for ecological process
@@ -252,6 +272,7 @@ impSampINLAstepMultiple <- nimbleFunction(
           }
 
         }
+
         print(nn)
 
         gamma[i] <<- nn
@@ -279,7 +300,11 @@ print(mld)
         # ii <- (i-1)*nSites + 1
 
         #if(latentIsDependent){
+
           loglike <- mld + model$calculate(c(dataVar, obsParams))
+print(values(model, "p.all"))
+print(values(model, "p.ind"))
+
 
           print(model$calculate(c(dataVar, obsParams)))
        # }else{
@@ -330,7 +355,12 @@ print(mld)
         mvEWSamples["wtsLatent", i][iNode] <<- wts[i]
 
         #Saving output for updated mean and sd
-        ecoParamsEstUpd[k,1:nEcoParams] <<- ecoParamsVals
+        # Note that for binary nodes, we will only update the probability with the simulated values probability
+        if(isEcoParamsBinary){
+        ecoParamsEstUpd[k,1:nBinNodesToSimulate] <<- values(model, binNodesToSimulate)
+        } else {
+          ecoParamsEstUpd[k,1:nEcoParams] <<- ecoParamsVals
+        }
         ecoParamsEstUpd[k,(nEcoParams+1)] <<- wts[i]
         obsParamsEstUpd[k,1:nObsParams] <<- obsParamsVals
         obsParamsEstUpd[k, (nObsParams + 1)] <<- wts[i]
@@ -362,7 +392,11 @@ print(mld)
             indx <- i + (t-1)*m
 
             nimCopy(mvEWSamples, model, nodes = allISparameters, nodesTo = allISparameters, row = indx, rowTo = 1)
+            if(isEcoParamsBinary){
+              ecoParamsValsNew <- values(model, binNodesToSimulate)
+            } else {
             ecoParamsValsNew <- values(model, ecoParams)
+            }
             obsParamsValsNew <- values(model, obsParams)
 
             # Update the model logProb with copied values
@@ -378,7 +412,9 @@ print(mld)
               if(ecoParamsProposal == "prior"){
               priorDist <- exp(model$calculate(ecoParams))
             } else if (ecoParamsProposal == "binomial"){
-              priorDist <-  dmybinom(ecoParamsVals, size = 1, prob = meanDisc[iNode], log = FALSE)
+              priorDist <-  dmybinom(ecoParamsValsNew[1:nBinNodesToSimulate], size = 1, prob = meanDisc[iNode], log = FALSE)
+            } else if (ecoParamsProposal == "poisson"){
+              priorDist <-  dmypois(ecoParamsValsNew, lambda = meanDisc[iNode], log = FALSE)
             }
 
             # calculate prior distribution for ecological params
@@ -396,7 +432,11 @@ print(mld)
             #print(gammaUpd)
             mvEWSamples["gamma",i][t] <<-  gammaUpd
             mvEWSamples["wts",i][t] <<- mvEWSamples["logLike",i][t] - log(gammaUpd/sumNt)
-            ecoParamsEstUpd[indx, 1:nEcoParams] <<- ecoParamsVals
+            if(isEcoParamsBinary){
+              ecoParamsEstUpd[indx, 1:nBinNodesToSimulate] <<- ecoParamsValsNew
+            } else {
+            ecoParamsEstUpd[indx, 1:nEcoParams] <<- ecoParamsValsNew
+            }
             ecoParamsEstUpd[indx,(nEcoParams+1)] <<- mvEWSamples["wts",i][t]
 
             #estimate gamma update for observation process parameters
@@ -445,7 +485,12 @@ print(mld)
 
         # updating ecological parameters
         for(i in 1:sumNt){
-          muEcoParsEst[i] <<- (sum(ecoParamsEstUpd[1:nEcoParams, i])/nEcoParams)* nWeightsUpd[i]
+
+          if(isEcoParamsBinary){
+          muEcoParsEst[i] <<- (sum(ecoParamsEstUpd[i, 1:nBinNodesToSimulate])/nEcoParams)* nWeightsUpd[i]
+          } else {
+            muEcoParsEst[i] <<- (sum(ecoParamsEstUpd[i, 1:nEcoParams])/nEcoParams)* nWeightsUpd[i]
+          }
         }
         muEcoPars <<- sum(muEcoParsEst[1:sumNt])/(sum(nWeightsUpd[1:sumNt]))
       }else{
@@ -533,7 +578,7 @@ inlaISmultiple <- nimbleFunction(
     adaptive <- extractControlElement(control, 'adaptive',  TRUE)
     additionalPars <- extractControlElement(control, 'additionalPars',  NULL)
     latentIsDependent <- extractControlElement(control, 'latentIsDependent',  FALSE)
-
+    poissonLowerBound <- extractControlElement(control, 'poissonLowerBound',  NULL)
     betaWts <- extractControlElement(control, 'betaWts',  NULL)
     latentWts <- extractControlElement(control, 'latentWts',  NULL)
     #linearPred <- extractControlElement(control, 'linearPred',  NULL)
@@ -562,7 +607,7 @@ inlaISmultiple <- nimbleFunction(
     dataVar <- y
 
     if(!is.character(y)) stop("'y' must be the node nae for the data variable")
-    y <- model[[y]]
+    y <- x
 
 
 
@@ -773,7 +818,8 @@ inlaISmultiple <- nimbleFunction(
                                                      adaptive,
                                                      additionalPars,
                                                      dataVar,
-                                                     latentIsDependent
+                                                     latentIsDependent,
+                                                    poissonLowerBound
       )
     }
 

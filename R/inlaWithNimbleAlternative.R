@@ -54,6 +54,7 @@ INLAWiNimDataGeneratingTargetDivide <- function(data,
                               constants = modelConstants,
                               inits = initsList)
 
+
   # Create the model in C
   Cmwtc <- nimble::compileNimble(mwtc,
                                  showCompilerOutput = FALSE) #Have issues compiling
@@ -186,7 +187,7 @@ INLAWiNimDataGeneratingTargetDivide <- function(data,
 
     #compile Model
     compileModel <- compileNimble(mwtc, rr,
-                                  showCompilerOutput = FALSE)
+                                  showCompilerOutput = TRUE)
 
 
     startTime <- Sys.time()
