@@ -136,17 +136,7 @@ impSampINLAstepMultiple <- nimbleFunction(
 
     if(obsParamsProposal == 'studentT'){
       propDist[[2]] <-studentProposal(model, obsParams)
-    } #else{
-     # obsPropDist[[1]] <- priorProposal(model, obsParams)
-   # }
-
-
-   # ecoPropDist3 <- poisProposal(model, ecoParams)
-     # ecoPropDist1 <- priorProposal(model, ecoParams)
-    #}
-
-
-
+    }
 
     #get dependencies of both parameters. Will be used to calculate weights at each time
     allISparameters <- c(ecoParams, obsParams)
@@ -203,8 +193,6 @@ impSampINLAstepMultiple <- nimbleFunction(
                                           ecoParamsProposal,
                                           obsParamsProposal,
                                         adaptive)
-
-
 
   },
   run = function(meanBeta = double(2),

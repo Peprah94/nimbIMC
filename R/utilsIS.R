@@ -1,44 +1,6 @@
 #' @import nimble
 #' @import methods
 
-# gammaEstimation <- nimbleFunction(
-#   setup = function(iNode,
-#                    ecoParamsProposal,
-#                    obsParamsProposal,
-#                    dfTdist,
-#                    timeIndex){},
-#   run = function(meanBeta = double(2),
-#                  sigmaBeta = double(3),
-#                  meanDisc = double(1),
-#                  ecoParamsVals = double(1),
-#                  obsParamsVals = double(1)){
-#
-#     nn <- 0
-#     rt <- 0
-#     for(j in 1:iNode){
-#       if(ecoParamsProposal == "binomial"){
-#         rt <- dmybinom(ecoParamsVals, size = 1, prob = meanDisc[j], log = FALSE)
-#       } else if(ecoParamsProposal == "poisson"){
-#         rt <- dmypois(ecoParamsVals, lambda = meanDisc[j], log = FALSE)
-#         # print(rt)
-#       }
-#
-#       # estimating gamma components for ecological process
-#       if(obsParamsProposal == "normal"){
-#         #note that getLogProb returns the log of the log density. To get the density, we take exp of the logProb
-#
-#         nn <- nn +  timeIndex * (dmnorm_chol(obsParamsVals, meanBeta[j,], chol(sigmaBeta[,,j]), prec_param = FALSE, log = FALSE) * rt)
-#       } else if(obsParamsProposal == "studentT"){
-#         nn <- nn +  timeIndex * (dmvt_chol(obsParamsVals, mu = meanBeta[j,], chol(sigmaBeta[,,j]), df= dfTdist, prec_param = FALSE, log = FALSE) *rt)
-#       }
-#
-#     }
-#
-#     returnType(double(0))
-#     return(nn)
-#   }
-# )
-
 
 adaptFnxVirtual <- nimbleFunctionVirtual(
   name = 'adaptFnxVirtual',
