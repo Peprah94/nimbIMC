@@ -1,54 +1,82 @@
 #' @import nimble
 #' @import methods
 
-gammaEstimation <- nimbleFunction(
-  setup = function(iNode,
-                   ecoParamsProposal,
-                   obsParamsProposal,
-                   dfTdist,
-                   timeIndex){},
+# gammaEstimation <- nimbleFunction(
+#   setup = function(iNode,
+#                    ecoParamsProposal,
+#                    obsParamsProposal,
+#                    dfTdist,
+#                    timeIndex){},
+#   run = function(meanBeta = double(2),
+#                  sigmaBeta = double(3),
+#                  meanDisc = double(1),
+#                  ecoParamsVals = double(1),
+#                  obsParamsVals = double(1)){
+#
+#     nn <- 0
+#     rt <- 0
+#     for(j in 1:iNode){
+#       if(ecoParamsProposal == "binomial"){
+#         rt <- dmybinom(ecoParamsVals, size = 1, prob = meanDisc[j], log = FALSE)
+#       } else if(ecoParamsProposal == "poisson"){
+#         rt <- dmypois(ecoParamsVals, lambda = meanDisc[j], log = FALSE)
+#         # print(rt)
+#       }
+#
+#       # estimating gamma components for ecological process
+#       if(obsParamsProposal == "normal"){
+#         #note that getLogProb returns the log of the log density. To get the density, we take exp of the logProb
+#
+#         nn <- nn +  timeIndex * (dmnorm_chol(obsParamsVals, meanBeta[j,], chol(sigmaBeta[,,j]), prec_param = FALSE, log = FALSE) * rt)
+#       } else if(obsParamsProposal == "studentT"){
+#         nn <- nn +  timeIndex * (dmvt_chol(obsParamsVals, mu = meanBeta[j,], chol(sigmaBeta[,,j]), df= dfTdist, prec_param = FALSE, log = FALSE) *rt)
+#       }
+#
+#     }
+#
+#     returnType(double(0))
+#     return(nn)
+#   }
+# )
+
+
+adaptFnxVirtual <- nimbleFunctionVirtual(
+  name = 'adaptFnxVirtual',
   run = function(meanBeta = double(2),
                  sigmaBeta = double(3),
                  meanDisc = double(1),
-                 ecoParamsVals = double(1),
-                 obsParamsVals = double(1)){
-
-    nn <- 0
-    rt <- 0
-    for(j in 1:iNode){
-      if(ecoParamsProposal == "binomial"){
-        rt <- dmybinom(ecoParamsVals, size = 1, prob = meanDisc[j], log = FALSE)
-      } else if(ecoParamsProposal == "poisson"){
-        rt <- dmypois(ecoParamsVals, lambda = meanDisc[j], log = FALSE)
-        # print(rt)
-      }
-
-      # estimating gamma components for ecological process
-      if(obsParamsProposal == "normal"){
-        #note that getLogProb returns the log of the log density. To get the density, we take exp of the logProb
-
-        nn <- nn +  timeIndex * (dmnorm_chol(obsParamsVals, meanBeta[j,], chol(sigmaBeta[,,j]), prec_param = FALSE, log = FALSE) * rt)
-      } else if(obsParamsProposal == "studentT"){
-        nn <- nn +  timeIndex * (dmvt_chol(obsParamsVals, mu = meanBeta[j,], chol(sigmaBeta[,,j]), df= dfTdist, prec_param = FALSE, log = FALSE) *rt)
-      }
-
-    }
-
+                 ecoParamsEst = double(2),
+                 obsParamsEst = double(2)){
     returnType(double(0))
-    return(nn)
-  }
+  },
+  methods = list(
+    updateMeanObsParams=function(){
+      returnType(double(1))
+      return(mu)
+    },
+    updateSigmaObsParams=function(){
+      returnType(double(2))
+      return(sigma)
+    },
+    updateMeanEcoParams=function(){
+      returnType(double(0))
+      return(muEcoPars)
+    }
+  )
 )
 
-
 adaptingFunction <- nimbleFunction(
+  contains = adaptFnxVirtual,
   setup = function(model,
                    mvEWSamples,
                    m,
                    iNode,
+                   dfTdist,
                    ecoParams,
                    obsParams,
                    ecoParamsProposal,
-                   obsParamsProposal){
+                   obsParamsProposal,
+                   adaptive){
 
     #store simulated values of ecological parameters
     ecoParams <- model$expandNodeNames(nodes = ecoParams)
@@ -107,7 +135,29 @@ adaptingFunction <- nimbleFunction(
   },
   run = function(meanBeta = double(2),
                  sigmaBeta = double(3),
-                 meanDisc = double(1)){
+                 meanDisc = double(1),
+                 ecoParamsEst = double(2),
+                 obsParamsEst = double(2)){
+    returnType(double(0))
+
+    declare(priorDist, double(0))
+    declare(ecoParamsValsNew, double(1))
+    declare(obsParamsValsNew, double(1))
+    declare(allIsparslike, double(0))
+    declare(priorObsParamsDist, double(0))
+    declare(gammaUpd, double(0))
+    declare(gammaObsParamsUpd, double(0))
+    declare(wtsUpd, double(1))
+    declare(maxWtsUpd, double(0))
+    priorDist <- 0
+    priorObsParamsDist <- 0
+    maxWtsUpd <- 0
+
+lll <- 0
+
+ecoParamsEstUpd <<- ecoParamsEst
+obsParamsEstUpd <<- obsParamsEst
+
     if(iNode > 1 & adaptive == TRUE){
       for(i in 1:m){
         for(t in 1:(iNode-1)){
@@ -156,9 +206,9 @@ adaptingFunction <- nimbleFunction(
           mvEWSamples["gamma",i][t] <<-  gammaUpd
           mvEWSamples["wts",i][t] <<- mvEWSamples["logLike",i][t] - log(gammaUpd/sumNt)
           if(isEcoParamsBinary){
-            ecoParamsEstUpd[indx, 1:nBinNodesToSimulate] <<- ecoParamsValsNew
+            ecoParamsEstUpd[indx, 1:nBinNodesToSimulate] <<- ecoParamsValsNew[1:nBinNodesToSimulate]
           } else {
-            ecoParamsEstUpd[indx, 1:nEcoParams] <<- ecoParamsValsNew
+            ecoParamsEstUpd[indx, 1:nEcoParams] <<- ecoParamsValsNew[1:nEcoParams]
           }
           ecoParamsEstUpd[indx,(nEcoParams+1)] <<- mvEWSamples["wts",i][t]
 
@@ -183,10 +233,9 @@ adaptingFunction <- nimbleFunction(
     if(adaptive == TRUE){
       # observation process process
       wtsUpd <- obsParamsEstUpd[1:sumNt,(nObsParams+1)]
-      maxWtsUpd <- max(wts)
+      maxWtsUpd <- max(wtsUpd)
       nWeightsUpd <- exp(wtsUpd - maxWtsUpd)
-      print(nWeightsUpd)
-      #betaWts <<- nWeightsUpd
+
 
 
       # Updating observ parameters mean
@@ -223,19 +272,19 @@ adaptingFunction <- nimbleFunction(
       muEcoPars <<- meanDisc[iNode]
     }
 
-    returnType(double(0))
-    return(maxWtsUpd)
+
+    return(lll)
   },
   methods = list(
-    updateBetaMean=function(){
+    updateMeanObsParams=function(){
       returnType(double(1))
       return(mu)
     },
-    updateBetaSigma=function(){
+    updateSigmaObsParams=function(){
       returnType(double(2))
       return(sigma)
     },
-    updateMuEcoPars=function(){
+    updateMeanEcoParams=function(){
       returnType(double(0))
       return(muEcoPars)
     }

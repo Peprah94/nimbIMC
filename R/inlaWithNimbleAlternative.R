@@ -188,7 +188,7 @@ INLAWiNimDataGeneratingTargetDivide <- function(data,
     #compile Model
     compileModel <- compileNimble(mwtc,
                                   rr,
-                                  showCompilerOutput = TRUE)
+                                  showCompilerOutput = FALSE)
 
 
     startTime <- Sys.time()

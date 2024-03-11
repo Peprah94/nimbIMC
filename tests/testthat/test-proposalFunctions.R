@@ -49,7 +49,7 @@ binNodesToFixVals <- rep(1, 5)
 binProposaltest <- binProposal(mwtc, binNodeToSimulate, binNodeToFix,binNodesToFixVals, ecoParams, size = 1)
 
 cmwtc <- compileNimble(binProposaltest, mwtc)
-expect_equal(class(cmwtc$binProposaltest$run(meanDisc = 0.5, n = 5)), "numeric")
+expect_equal(class(cmwtc$binProposaltest$run(meanDisc = 0.5, n = 5, m = 10))[1], "matrix")
 })
 
 
@@ -99,7 +99,7 @@ test_that("Testing Poisson proposal distribution",{
   poisProposaltest <- poisProposal(mwtc, ecoParams, lowerBound = rep(0, 10), includeLowerBound = 0)
 
   cmwtc <- compileNimble(poisProposaltest, mwtc)
-  expect_equal(class(cmwtc$poisProposaltest$run(n = 10, meanDisc = 2)), "numeric")
+  expect_equal(class(cmwtc$poisProposaltest$run(n = 10, meanDisc = 2, m = 10))[1], "matrix")
   expect_error(cmwtc$poisProposaltest$run(n = 5, meanDisc = 2, lowerBound = rep(0, 10), includeLowerBound = 0))
 })
 
@@ -149,7 +149,7 @@ test_that("Testing prior proposal distribution",{
   priorProposaltest <- priorProposal(mwtc, ecoParams)
 
   cmwtc <- compileNimble(priorProposaltest, mwtc)
-  expect_equal(class(cmwtc$priorProposaltest$run()), "numeric")
+  expect_equal(class(cmwtc$priorProposaltest$run(n = 10, meanDisc = 2, m = 10))[1], "matrix")
 })
 
 test_that("Testing normal proposal distribution",{
@@ -199,7 +199,7 @@ test_that("Testing normal proposal distribution",{
 
   cmwtc <- compileNimble(normalProposaltest, mwtc)
 
-  expect_equal(class(cmwtc$normalProposaltest$run(mean = rep(0, 10), sigma=diag(10))), "numeric")
+  expect_equal(class(cmwtc$normalProposaltest$run(mean = rep(0, 10), sigma=diag(10), m = 10))[1], "matrix")
 })
 
 test_that("Testing student-T proposal distribution",{
@@ -249,5 +249,5 @@ test_that("Testing student-T proposal distribution",{
 
   cmwtc <- compileNimble(studentProposaltest, mwtc)
 
-  expect_equal(class(cmwtc$studentProposaltest$run(mean = rep(0, 10), sigma=diag(10))), "numeric")
+  expect_equal(class(cmwtc$studentProposaltest$run(mean = rep(0, 10), sigma=diag(10), m = 10))[1], "matrix")
 })
